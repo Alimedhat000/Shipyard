@@ -6,7 +6,7 @@ Self-hosting static sites is painful. Existing tools either lock you into a SaaS
 
 ## Solution
 
-BigBoss is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to MinIO, and routes traffic via Nginx. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
+BigBoss is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, and routes traffic via Nginx. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
 
 ## User Stories
 
@@ -21,97 +21,97 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 ### App Management
 
-7. As a developer, I want to create an app by connecting a GitHub repo, so that I can deploy it immediately.
-8. As a developer, I want the platform to auto-detect my framework (Vite, CRA, Next.js, Vue), so that build command and output directory are pre-filled.
-9. As a developer, I want to override the detected framework, build command, and output directory, so that I can handle non-standard setups.
-10. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build time.
-11. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
-12. As a developer, I want to see my apps on a dashboard with last deployment status, so that I can quickly see what is deployed.
-13. As a developer, I want to delete an app, so that I can clean up unused projects.
+1. As a developer, I want to create an app by connecting a GitHub repo, so that I can deploy it immediately.
+2. As a developer, I want the platform to auto-detect my framework (Vite, CRA, Next.js, Vue), so that build command and output directory are pre-filled.
+3. As a developer, I want to override the detected framework, build command, and output directory, so that I can handle non-standard setups.
+4. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build time.
+5. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
+6. As a developer, I want to see my apps on a dashboard with last deployment status, so that I can quickly see what is deployed.
+7. As a developer, I want to delete an app, so that I can clean up unused projects.
 
 ### Deployments
 
-14. As a developer, I want to trigger a manual deploy from the latest commit, so that I can test changes immediately.
-15. As a developer, I want to see a list of all deployments for an app, so that I can track history.
-16. As a developer, I want to see streaming build logs in the UI, so that I can debug failures without leaving the browser.
-17. As a developer, I want to cancel an in-progress build, so that I can stop a bad deploy.
-18. As a developer, I want to retry a failed deployment, so that I can recover from transient errors.
-19. As a developer, I want to rollback to a previous successful deployment, so that I can revert a broken release instantly.
-20. As a developer, I want to see build metadata (commit SHA, message, duration, worker ID), so that I know exactly what was deployed.
+1. As a developer, I want to trigger a manual deploy from the latest commit, so that I can test changes immediately.
+2. As a developer, I want to see a list of all deployments for an app, so that I can track history.
+3. As a developer, I want to see streaming build logs in the UI, so that I can debug failures without leaving the browser.
+4. As a developer, I want to cancel an in-progress build, so that I can stop a bad deploy.
+5. As a developer, I want to retry a failed deployment, so that I can recover from transient errors.
+6. As a developer, I want to rollback to a previous successful deployment, so that I can revert a broken release instantly.
+7. As a developer, I want to see build metadata (commit SHA, message, duration, worker ID), so that I know exactly what was deployed.
 
 ### CI/CD — Auto-Deploy
 
-21. As a developer, I want GitHub webhooks to auto-trigger deploys on push, so that I don't have to manually deploy after every commit.
-22. As a developer, I want to select which branch triggers deploys, so that I can control when things go live (default: `main`).
-23. As a developer, I want webhook payloads validated by GitHub signature, so that fake deploys cannot be triggered.
-24. As a developer, I want rapid pushes to cancel the previous pending build and only deploy the latest commit, so that stale builds are not wasting resources.
-25. As a developer, I want webhook registration to happen automatically via GitHub API after OAuth, so that I don't have to configure it manually.
+1. As a developer, I want GitHub webhooks to auto-trigger deploys on push, so that I don't have to manually deploy after every commit.
+2. As a developer, I want to select which branch triggers deploys, so that I can control when things go live (default: `main`).
+3. As a developer, I want webhook payloads validated by GitHub signature, so that fake deploys cannot be triggered.
+4. As a developer, I want rapid pushes to cancel the previous pending build and only deploy the latest commit, so that stale builds are not wasting resources.
+5. As a developer, I want webhook registration to happen automatically via GitHub API after OAuth, so that I don't have to configure it manually.
 
 ### Build Pipeline
 
-26. As a developer, I want my build to run in an isolated Docker container (`node:18-bullseye`), so that builds don't interfere with each other.
-27. As a developer, I want native dependencies (sharp, node-gyp) to compile, so that common image processing libraries work.
-28. As a developer, I want the build command and output directory to come from my app settings, so that the platform is flexible.
-29. As a developer, I want the platform to verify the output directory exists and is not empty after build, so that silent failures are caught with clear error messages.
-30. As a developer, I want builds to fail with a clear message if Next.js SSR is detected, so that I know to use static export mode.
-31. As a developer, I want path traversal in the output directory config blocked (`..`, leading `/`), so that the system cannot be tricked into extracting outside the project.
-32. As a developer, I want build logs saved to the database, so that they are available after the build completes.
-33. As a developer, I want to set a build timeout (15 min default), so that hung builds don't block the queue forever.
+1. As a developer, I want my build to run in an isolated Docker container (`node:18-bullseye`), so that builds don't interfere with each other.
+2. As a developer, I want native dependencies (sharp, node-gyp) to compile, so that common image processing libraries work.
+3. As a developer, I want the build command and output directory to come from my app settings, so that the platform is flexible.
+4. As a developer, I want the platform to verify the output directory exists and is not empty after build, so that silent failures are caught with clear error messages.
+5. As a developer, I want builds to fail with a clear message if Next.js SSR is detected, so that I know to use static export mode.
+6. As a developer, I want path traversal in the output directory config blocked (`..`, leading `/`), so that the system cannot be tricked into extracting outside the project.
+7. As a developer, I want build logs saved to the database, so that they are available after the build completes.
+8. As a developer, I want to set a build timeout (15 min default), so that hung builds don't block the queue forever.
 
 ### Step-Aware Failure Handling
 
-34. As a developer, I want git clone failures on network timeout to retry up to 3 times with exponential backoff, so that transient network blips don't fail my deploy.
-35. As a developer, I want git clone failures with exit code 128 (auth/not found) to fail immediately without retry, so that bad tokens/repos are caught fast.
-36. As a developer, I want npm install failures on "404 Not Found" to fail immediately without retry, so that bad package names are caught fast.
-37. As a developer, I want npm install failures on network timeout to retry up to 3 times, so that transient registry issues don't fail my deploy.
-38. As a developer, I want npm install failures on ENOSPC (disk full) to alert ops and fail all builds, so that I know when the build worker is out of disk.
-39. As a developer, I want npm run build failures to fail immediately without retry, so that my code errors are surfaced immediately.
-40. As a developer, I want build failures with OOM (heap out of memory) to fail with a clear message about memory limits, so that I know to optimize my build.
-41. As a developer, I want S3 upload failures on network timeout to retry 3 times, so that transient storage issues don't fail my deploy.
-42. As a developer, I want S3 upload failures with bad credentials (403) to alert ops and fail all builds, so that credential issues are caught and fixed.
+1. As a developer, I want git clone failures on network timeout to retry up to 3 times with exponential backoff, so that transient network blips don't fail my deploy.
+2. As a developer, I want git clone failures with exit code 128 (auth/not found) to fail immediately without retry, so that bad tokens/repos are caught fast.
+3. As a developer, I want npm install failures on "404 Not Found" to fail immediately without retry, so that bad package names are caught fast.
+4. As a developer, I want npm install failures on network timeout to retry up to 3 times, so that transient registry issues don't fail my deploy.
+5. As a developer, I want npm install failures on ENOSPC (disk full) to alert ops and fail all builds, so that I know when the build worker is out of disk.
+6. As a developer, I want npm run build failures to fail immediately without retry, so that my code errors are surfaced immediately.
+7. As a developer, I want build failures with OOM (heap out of memory) to fail with a clear message about memory limits, so that I know to optimize my build.
+8. As a developer, I want S3 upload failures on network timeout to retry 3 times, so that transient storage issues don't fail my deploy.
+9. As a developer, I want S3 upload failures with bad credentials (403) to alert ops and fail all builds, so that credential issues are caught and fixed.
 
 ### Container Lifecycle
 
-43. As a platform operator, I want successful containers to be removed immediately (`docker rm -f`) after dist extraction, so that disk space is reclaimed.
-44. As a platform operator, I want failed containers to have logs saved before removal, so that debugging is possible.
-45. As a platform operator, I want zombie containers to be killed on worker startup, so that a crashed server doesn't leave orphaned containers.
-46. As a platform operator, I want new containers spun up for retries, so that fresh state is used.
-47. As a platform operator, I want each worker to run at most 1 concurrent build (concurrency = 1 in BullMQ), so that resource usage is bounded.
+1. As a platform operator, I want successful containers to be removed immediately (`docker rm -f`) after dist extraction, so that disk space is reclaimed.
+2. As a platform operator, I want failed containers to have logs saved before removal, so that debugging is possible.
+3. As a platform operator, I want zombie containers to be killed on worker startup, so that a crashed server doesn't leave orphaned containers.
+4. As a platform operator, I want new containers spun up for retries, so that fresh state is used.
+5. As a platform operator, I want each worker to run at most 1 concurrent build (concurrency = 1 in BullMQ), so that resource usage is bounded.
 
 ### Storage & Rollback
 
-48. As a developer, I want my deployed files stored in MinIO under `/users/{userId}/apps/{appId}/deployments/{deploymentId}/`, so that every deployment is isolated and addressable.
-49. As a developer, I want the platform to keep the newest 5 deployments and delete older ones automatically, so that rollback is possible without unlimited storage growth.
-50. As a developer, I want rollback to update the active deployment pointer in the database, so that Nginx can route to the correct deployment.
-51. As a platform operator, I want Nginx config to be regenerated at deploy time (not at request time), so that routing is fast and DB-free.
-52. As a developer, I want all deploys on `*.bigboss.dev` to route via Nginx to the correct S3 prefix, so that my app is accessible at a predictable URL.
-53. As a platform operator, I want Nginx config generated from templates with string replacement, so that the system stays simple.
-54. As a developer, I want SPA fallback (every 404 serves index.html), so that client-side routing works in my React/Vue app.
-55. As a developer, I want the platform to store content hashes in a DB table (`deployment_files`) for future deduplication, so that the schema is ready when hashing is added.
+1. As a developer, I want my deployed files stored in Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production under `/users/{userId}/apps/{appId}/deployments/{deploymentId}/`, so that every deployment is isolated and addressable.
+2. As a developer, I want the platform to keep the newest 5 deployments and delete older ones automatically, so that rollback is possible without unlimited storage growth.
+3. As a developer, I want rollback to update the active deployment pointer in the database, so that Nginx can route to the correct deployment.
+4. As a platform operator, I want Nginx config to be regenerated at deploy time (not at request time), so that routing is fast and DB-free.
+5. As a developer, I want all deploys on `*.bigboss.dev` to route via Nginx to the correct S3 prefix, so that my app is accessible at a predictable URL.
+6. As a platform operator, I want Nginx config generated from templates with string replacement, so that the system stays simple.
+7. As a developer, I want SPA fallback (every 404 serves index.html), so that client-side routing works in my React/Vue app.
+8. As a developer, I want the platform to store content hashes in a DB table (`deployment_files`) for future deduplication, so that the schema is ready when hashing is added.
 
 ### Queue & Workers
 
-56. As a platform operator, I want jobs queued in Redis via BullMQ, so that a crash doesn't lose pending jobs.
-57. As a platform operator, I want job data to be just the `deployment_id`, so that the job is stateless and workers can fetch state from the database.
-58. As a platform operator, I want BullMQ to handle locking, retries, and concurrency, so that we don't reimplement queue primitives.
-59. As a platform operator, I want a worker pool of 2–3 concurrent workers, so that multiple builds can run in parallel.
-60. As a platform operator, I want failed jobs (after max retries) visible in the UI with a manual retry option, so that I can recover from edge cases.
-61. As a platform operator, I want all workers to be identical (no specialized workers), so that any worker can pick up any job.
+1. As a platform operator, I want jobs queued in Redis via BullMQ, so that a crash doesn't lose pending jobs.
+2. As a platform operator, I want job data to be just the `deployment_id`, so that the job is stateless and workers can fetch state from the database.
+3. As a platform operator, I want BullMQ to handle locking, retries, and concurrency, so that we don't reimplement queue primitives.
+4. As a platform operator, I want a worker pool of 2–3 concurrent workers, so that multiple builds can run in parallel.
+5. As a platform operator, I want failed jobs (after max retries) visible in the UI with a manual retry option, so that I can recover from edge cases.
+6. As a platform operator, I want all workers to be identical (no specialized workers), so that any worker can pick up any job.
 
 ### Observability
 
-62. As a platform operator, I want structured JSON logs to stdout, so that Docker can aggregate them.
-63. As a platform operator, I want a `/health` endpoint on the API, so that load balancers can check health.
-64. As a platform operator, I want workers to heartbeat to Redis, so that dead workers are detectable.
-65. As a platform operator, I want metrics tracked (deployments/hour, success/fail rate, build duration, queue depth), so that I can monitor the system without a complex observability stack.
+1. As a platform operator, I want structured JSON logs to stdout, so that Docker can aggregate them.
+2. As a platform operator, I want a `/health` endpoint on the API, so that load balancers can check health.
+3. As a platform operator, I want workers to heartbeat to Redis, so that dead workers are detectable.
+4. As a platform operator, I want metrics tracked (deployments/hour, success/fail rate, build duration, queue depth), so that I can monitor the system without a complex observability stack.
 
 ### Local Dev
 
-66. As a developer, I want all services (API, worker, Redis, Postgres, MinIO, Nginx) in a single Docker Compose file, so that onboarding is frictionless.
-67. As a developer, I want database migrations via Drizzle, so that schema changes are versioned and reproducible.
-68. As a developer, I want all environment variables validated via Zod against a `.env.example`, so that missing config is caught early.
-69. As a developer, I want the API to hot-reload on code changes, so that I can iterate quickly.
-70. As a developer, I want the worker to restart on code changes and cancel in-flight jobs (dev only), so that new code is picked up without zombie builds.
+1. As a developer, I want all services (API, worker, Redis, Postgres, Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, Nginx) in a single Docker Compose file, so that onboarding is frictionless.
+2. As a developer, I want database migrations via Drizzle, so that schema changes are versioned and reproducible.
+3. As a developer, I want all environment variables validated via Zod against a `.env.example`, so that missing config is caught early.
+4. As a developer, I want the API to hot-reload on code changes, so that I can iterate quickly.
+5. As a developer, I want the worker to restart on code changes and cancel in-flight jobs (dev only), so that new code is picked up without zombie builds.
 
 ## Implementation Decisions
 
@@ -121,13 +121,13 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 - **Separation of concerns.** The logical layer (deployments, rollback, app settings) is separate from the execution layer (build_jobs, queue). This allows safe retries, worker scaling, and independent state tracking.
 
-- **Storage abstraction.** The storage layer is abstracted behind an S3-compatible interface (`uploadToObjectStorage()`). This allows swapping MinIO for AWS S3 in production without changing business logic.
+- **Storage abstraction.** The storage layer is abstracted behind an S3-compatible interface (`uploadToObjectStorage()`). This allows swapping Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production for AWS S3 in production without changing business logic.
 
 ### Modules
 
 1. **API Server** — Express/Fastify REST API. Auth via GitHub OAuth + session cookies stored in Redis. Endpoints for apps, deployments, envvars, logs. No business logic here — delegates to service layer.
 
-2. **Worker** — Node.js process pulling from BullMQ. Fetches deployment from DB, clones GitHub repo, runs Docker container, extracts output, uploads to MinIO, updates deployment status, regenerates Nginx config. Stateless job processing.
+2. **Worker** — Node.js process pulling from BullMQ. Fetches deployment from DB, clones GitHub repo, runs Docker container, extracts output, uploads to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, updates deployment status, regenerates Nginx config. Stateless job processing.
 
 3. **Deployment Engine** — Core service layer. Orchestrates the build lifecycle. Handles step sequencing, error classification, retry logic, log streaming.
 
@@ -139,7 +139,7 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 7. **Storage Service** — S3-compatible uploads. Handles retries, manifest tracking.
 
- 8. **Caddy Config Manager** — JSON API config generation. Sends config to Caddy's `/config/` endpoint. Caddy auto-reloads with built-in auto-HTTPS.
+8. **Caddy Config Manager** — JSON API config generation. Sends config to Caddy's `/config/` endpoint. Caddy auto-reloads with built-in auto-HTTPS.
 
 9. **EnvVar Service** — AES-256 encryption/decryption. Injects vars into build container at build time.
 
@@ -277,7 +277,7 @@ GET  /health                 → Health check
 7. npm run build
    - Any non-zero exit → fail immediately
 8. Verify output directory exists and is not empty
-9. Upload to MinIO (full upload in MVP)
+9. Upload to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production (full upload in MVP)
 10. Keep newest 5 deployments, delete older ones
 11. Update active_deployment_id in apps
 12. Regenerate Nginx config
@@ -287,9 +287,9 @@ GET  /health                 → Health check
 ```
 
 ### Caddy Configuration
- 
+
 - Server blocks for `*.bigboss.dev` via Caddy's built-in auto-HTTPS (Let's Encrypt)
-- `reverse_proxy` to MinIO endpoint
+- `reverse_proxy` to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production endpoint
 - SPA fallback: Caddy `handle_errors` with rewrite to `/index.html`
 - JSON API config sent to `http://caddy:2019/config/`
 - S3 path style: `http://minio:9000/bucket/users/.../`
@@ -313,8 +313,8 @@ GET  /health                 → Health check
 
 ## Testing Decisions
 
-- **Test external behavior only.** Do not test BullMQ internals, Docker SDK calls, or MinIO SDK calls. Mock these at the boundary.
-- **Good tests:** Queue job creation → verify job in Redis. Trigger deploy → verify deployment status in DB. Build success → verify MinIO upload, Nginx config update, status transition.
+- **Test external behavior only.** Do not test BullMQ internals, Docker SDK calls, or Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production SDK calls. Mock these at the boundary.
+- **Good tests:** Queue job creation → verify job in Redis. Trigger deploy → verify deployment status in DB. Build success → verify Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production upload, Nginx config update, status transition.
 - **Modules to test in isolation:**
   - Step-aware retry logic (Deployment Engine)
   - Env var encryption/decryption
@@ -322,7 +322,7 @@ GET  /health                 → Health check
   - Webhook signature validation
   - Nginx config template generation
   - Framework auto-detection
-- **No tests in MVP:** Docker container exec, GitHub API calls, MinIO uploads (these require integration test environments)
+- **No tests in MVP:** Docker container exec, GitHub API calls, Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production uploads (these require integration test environments)
 
 ## Out of Scope
 
@@ -344,6 +344,7 @@ The following are explicitly excluded from MVP and planned for v2 or later:
 ### v2 Expansion Path
 
 After MVP, the natural expansion is:
+
 - **v2:** Custom domains + Let' s Encrypt, webhook notifications, content hashing
 - **v3:** Teams + permissions, branch preview URLs, usage analytics
 
@@ -354,8 +355,9 @@ BigBoss is designed to be self-hosted. The deployment target is a single server 
 ### Interview Positioning
 
 This project demonstrates:
+
 - Distributed systems thinking (worker orchestration, queue management)
-- Infrastructure awareness (Docker, Nginx, MinIO, storage routing)
+- Infrastructure awareness (Docker, Nginx, Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, storage routing)
 - Control plane vs data plane separation
 - Step-aware error handling and retry logic
 - Self-hosted deployment philosophy (vs SaaS quota enforcement)
@@ -363,3 +365,4 @@ This project demonstrates:
 ### Naming Note
 
 The project name "BigBoss" reflects the control-plane nature — it is the boss that orchestrates deployments, not a hosting provider.
+
