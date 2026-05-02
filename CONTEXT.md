@@ -42,6 +42,13 @@ An individual phase in the deployment pipeline:
 4. **Verify** — check output directory exists and is not empty
 5. **Upload** — sync output to object storage
 
+### Output Directory Verification Rules
+
+- Check directory exists
+- Check directory contains at least 1 file (any type, excluding dotfiles like .gitkeep)
+- Recursive check: if dist/ has subdirectories with files, that's valid
+- If empty: fail with "Output directory 'dist/' is empty. Verify your build command."
+
 ### Step-Aware Failure Handling
 
 A retry policy where each Build Step has its own failure classification:
@@ -79,6 +86,13 @@ S3-compatible blob storage for deployed artifacts. Abstracted behind an `uploadT
 ### Deployment Retention
 
 The newest 5 deployments per App are kept in object storage. Older deployments are deleted automatically after each successful deploy. Enables rollback without unlimited storage growth.
+
+### Deployment Retention Rules
+
+- Keep metadata in database forever (deployments table, build_jobs table, deployment_logs)
+- Delete files from object storage only (after successful deploy)
+- Check before deleting: if deployment.id == app.active_deployment_id, skip delete
+- Deletion is async background job (queued after deploy succeeds)
 
 ### Active Deployment
 

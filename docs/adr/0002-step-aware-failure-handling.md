@@ -18,10 +18,20 @@ We implement step-aware failure handling, where each Build Step has its own fail
 - **Network timeout:** Retry up to 3× with exponential backoff (2s, 4s, 8s). After 3 failures, mark as failed.
 
 ### Step 2: Install (npm install)
-
 - **404 Not Found:** Fail immediately. The package does not exist; retrying will not change this.
 - **Network timeout:** Retry up to 3×. Transient registry issues are common.
 - **ENOSPC (disk full):** System error. Alert ops immediately. Fail all queued builds. No retry — retrying will not fix full disk. Root cause must be resolved externally.
+
+### Environment Variable Injection
+- Decrypt env vars in worker before starting container
+- Pass via `-e` flags on `docker run`: `docker run -e NODE_ENV=production -e API_KEY=secret123 ...`
+- Do NOT write `.env` file (might conflict with user's `.env` in repo)
+- Example:
+  ```javascript
+  const envVars = await decryptEnvVars(app.id);
+  const envFlags = Object.entries(envVars).map(([k, v]) => `-e ${k}=${v}`).join(' ');
+  docker run ${envFlags} node:18-bullseye npm run build
+  ```
 
 ### Step 3: Build (npm run build)
 
@@ -33,9 +43,13 @@ We implement step-aware failure handling, where each Build Step has its own fail
 - **Output directory missing or empty:** Fail with a specific error message. Not a retry — the build command is wrong. Do not assume `dist` if blank.
 
 ### Step 5: Upload (S3 / Garage)
-
 - **Network timeout:** Retry up to 3× with exponential backoff. Transient storage issues.
 - **403 Access Denied:** System error. Alert ops. Fail all queued builds immediately. Credentials are wrong — retrying will not fix this.
+- **Upload Strategy:**
+  - Use `aws s3 sync` (not `aws s3 cp`)
+  - `sync` checks each file's ETag (MD5 hash) and only uploads missing/changed files
+  - On network timeout: retry entire `sync` command (sync is idempotent)
+  - After 3 failed retries: fail deployment, do NOT save partial upload
 
 ## Consequences
 

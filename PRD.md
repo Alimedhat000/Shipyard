@@ -340,6 +340,35 @@ The following are explicitly excluded from MVP and planned for v2 or later:
 
 ## Further Notes
 
+## Further Notes
+
+### MVP Priority Breakdown
+
+**P0 (Must Have - Week 1-4):**
+- GitHub OAuth, app creation, manual deploy
+- Build pipeline with step-aware retry
+- Garage storage, Caddy routing, SPA fallback
+- Environment variables (encrypted)
+- Basic UI (app list, deploy button, logs view)
+
+**P1 (Should Have - Week 5-6):**
+- Auto-deploy webhooks
+- Rollback
+- Build cancellation
+- Deployment history
+
+**P2 (Nice to Have - Post-MVP):**
+- Rapid push debounce
+- Streaming build logs (SSE)
+- Worker heartbeat monitoring
+- Deployment retention cleanup
+
+**Cut from MVP:**
+- Content hashing (schema ready, not implemented)
+- Teams UI (schema ready, single-user only)
+- Custom domains
+- Usage analytics
+
 ### v2 Expansion Path
 
 After MVP, the natural expansion is:

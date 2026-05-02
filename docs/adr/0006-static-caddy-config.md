@@ -13,6 +13,26 @@ Caddy needs to route `myapp.bigboss.dev` to the correct Garage prefix. Two appro
 
 Dynamic requires a Lua module (OpenResty) or an auth_request subrequest to the API on every request. This adds latency and a DB dependency in the request path.
 
+## Race Condition Mitigation
+
+If two deploys finish at the same time, both sending config to Caddy API, could one overwrite the other?
+
+**Solution:** Use Caddy's per-route API (not full config):
+```
+POST /config/apps/http/servers/{server_name}/routes/{route_id}
+```
+- Each app gets unique route_id based on app.id
+- Deploy updates ONLY that app's route, not entire config
+- No lock needed — Caddy's API is atomic per-route
+
+**Alternative (if simpler for MVP):**
+- Single-threaded Caddy config writer (queue config updates)
+- Workers call queueCaddyUpdate(appId) after deploy
+- Background job processes queue serially
+- No concurrent writes to Caddy API
+
+We'll use per-route updates for simplicity.
+
 ## Decision
 
 Static config generation at deploy time:
