@@ -8,7 +8,7 @@ Accepted
 
 Vercel and similar SaaS platforms enforce globally unique app names — only one user can own "myapp" across the entire platform. This makes sense for a multi-tenant SaaS where `myapp.vercel.app` must resolve to exactly one deployment.
 
-BigBoss is a self-hosted control plane. Each instance serves one organization (multi-tenancy via multiple instances, not via one shared deployment). Therefore, global name uniqueness is unnecessary and would impose artificial constraints on users.
+Shipyard is a self-hosted control plane. Each instance serves one organization (multi-tenancy via multiple instances, not via one shared deployment). Therefore, global name uniqueness is unnecessary and would impose artificial constraints on users.
 
 ## Decision
 

@@ -2,7 +2,7 @@
 ## Status
 Accepted
 ## Context
-BigBoss supports auto-deploy via GitHub webhooks. Two key questions need answering:
+Shipyard supports auto-deploy via GitHub webhooks. Two key questions need answering:
 1. When do you register webhooks?
 2. How do you handle multiple apps from the same repo with different branches?
 ## Decision
@@ -54,4 +54,4 @@ POST /webhooks/github
 
 ## Out of Scope
 - Webhook retry on 5xx errors (GitHub handles this)
-- Delivery logs (stored by GitHub, not BigBoss)
+- Delivery logs (stored by GitHub, not Shipyard)

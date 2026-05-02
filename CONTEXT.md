@@ -1,4 +1,4 @@
-# BigBoss — Domain Glossary
+# Shipyard — Domain Glossary
 
 ## Core Entities
 
@@ -110,7 +110,7 @@ Dynamic Caddy configuration via JSON API at deploy time (not at request time). C
 
 ### Deployment Control Plane
 
-BigBoss is a **deployment control plane**, not a SaaS hosting product. The platform orchestrates builds and routes traffic; it does not enforce business-layer constraints (quotas, billing, per-user rate limits). The only constraints are infrastructure-level: container memory (2GB), build timeout (15 min), and max concurrent builds (worker count). Resource usage is visible to users; blocking only occurs if the system is in genuine danger.
+Shipyard is a **deployment control plane**, not a SaaS hosting product. The platform orchestrates builds and routes traffic; it does not enforce business-layer constraints (quotas, billing, per-user rate limits). The only constraints are infrastructure-level: container memory (2GB), build timeout (15 min), and max concurrent builds (worker count). Resource usage is visible to users; blocking only occurs if the system is in genuine danger.
 
 ### Self-Hosted Model
 

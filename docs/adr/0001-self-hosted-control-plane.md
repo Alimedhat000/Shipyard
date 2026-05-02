@@ -10,7 +10,7 @@ The original plan (based on a YouTube video) described a "managed service infras
 
 ## Decision
 
-We rejected this model. Instead, BigBoss adopts the self-hosted deployment control plane philosophy (inspired by Coolify):
+We rejected this model. Instead, Shipyard adopts the self-hosted deployment control plane philosophy (inspired by Coolify):
 
 - **No per-user storage quotas or deploy rate limits.** Resource usage is visible to users (dashboard) but not artificially capped.
 - **No billing layer.** There is no monetization logic in the system, nor will there ever be.
@@ -29,5 +29,5 @@ We rejected this model. Instead, BigBoss adopts the self-hosted deployment contr
 
 - **SaaS with quotas (rejected):** Would require per-user tracking, quota enforcement middleware, and a billing layer — all orthogonal to the core deployment engine.
 - **Kubernetes operator (rejected):** Overkill for MVP. Docker Compose is sufficient for single-server deployments, which is the primary self-hosted target.
-- **Managed PaaS (rejected):** Would lock users into the hosting platform. BigBoss is designed to run anywhere (local dev, VPS, bare metal).
+- **Managed PaaS (rejected):** Would lock users into the hosting platform. Shipyard is designed to run anywhere (local dev, VPS, bare metal).
 

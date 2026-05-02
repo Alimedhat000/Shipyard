@@ -31,6 +31,6 @@ This is inspired by GitHub's model: users _have_ organizations, they don't _beco
 ## Alternatives Considered
 
 - **`user_id` directly on apps (rejected):** Simpler MVP, but requires a painful migration when teams ship. The cost of changing our mind later is high.
-- **No orgs at all, just users (rejected):** Would prevent teams entirely without a full rewrite. BigBoss is a control plane — orgs are a core concept.
+- **No orgs at all, just users (rejected):** Would prevent teams entirely without a full rewrite. Shipyard is a control plane — orgs are a core concept.
 - **GitHub-style "user is an org" (rejected):** Would make the `users` table double as orgs. Messy when real orgs are added later.
 

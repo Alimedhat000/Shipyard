@@ -1,4 +1,4 @@
-# BigBoss — Self-Hosted Deployment Control Plane
+# Shipyard — Self-Hosted Deployment Control Plane
 
 ## Problem Statement
 
@@ -6,7 +6,7 @@ Self-hosting static sites is painful. Existing tools either lock you into a SaaS
 
 ## Solution
 
-BigBoss is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to Garage, and routes traffic via Caddy. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
+Shipyard is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to Garage, and routes traffic via Caddy. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
 
 ## User Stories
 
@@ -117,7 +117,7 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 ### Architecture
 
-- **Control plane philosophy.** BigBoss is a self-hosted deployment control plane, not a SaaS product. There are no business-layer limits (quotas, billing, per-user storage caps, per-app rate limits). The only constraints are infrastructure-level: container memory limit (2GB), build timeout (15 min), and max concurrent builds = worker count. Resource visibility (usage dashboard) is provided; blocking only happens if the system is in genuine danger.
+- **Control plane philosophy.** Shipyard is a self-hosted deployment control plane, not a SaaS product. There are no business-layer limits (quotas, billing, per-user storage caps, per-app rate limits). The only constraints are infrastructure-level: container memory limit (2GB), build timeout (15 min), and max concurrent builds = worker count. Resource visibility (usage dashboard) is provided; blocking only happens if the system is in genuine danger.
 
 - **Separation of concerns.** The logical layer (deployments, rollback, app settings) is separate from the execution layer (build_jobs, queue). This allows safe retries, worker scaling, and independent state tracking.
 
@@ -378,7 +378,7 @@ After MVP, the natural expansion is:
 
 ### Self-Hosted Model
 
-BigBoss is designed to be self-hosted. The deployment target is a single server or small cluster (docker-compose up). There is no multi-tenant SaaS isolation layer — each self-hosted instance serves one organization. Multi-tenancy is achieved by deploying multiple instances, not by serving multiple organizations from one deployment.
+Shipyard is designed to be self-hosted. The deployment target is a single server or small cluster (docker-compose up). There is no multi-tenant SaaS isolation layer — each self-hosted instance serves one organization. Multi-tenancy is achieved by deploying multiple instances, not by serving multiple organizations from one deployment.
 
 ### Interview Positioning
 
@@ -392,5 +392,5 @@ This project demonstrates:
 
 ### Naming Note
 
-The project name "BigBoss" reflects the control-plane nature — it is the boss that orchestrates deployments, not a hosting provider.
+The project name "Shipyard" reflects the control-plane nature — it is the boss that orchestrates deployments, not a hosting provider.
 

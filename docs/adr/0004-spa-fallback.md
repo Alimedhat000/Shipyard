@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-BigBoss deploys static sites (React, Vue, Svelte, etc.) that use client-side routing. When a user navigates to `/dashboard` directly, the browser requests that path from Caddy. If there is no literal file at `/dashboard`, Caddy returns 404. The SPA's `index.html` is never loaded, and client-side routing fails.
+Shipyard deploys static sites (React, Vue, Svelte, etc.) that use client-side routing. When a user navigates to `/dashboard` directly, the browser requests that path from Caddy. If there is no literal file at `/dashboard`, Caddy returns 404. The SPA's `index.html` is never loaded, and client-side routing fails.
 
 Vercel, Netlify, and similar platforms all implement SPA fallback — serving `index.html` on any 404 — as a core feature. Without it, every SPA with client-side routing is broken on first load of any non-root path.
 
