@@ -22,7 +22,7 @@ Configure Caddy to serve `index.html` on all 404 responses using the `try_files`
       "handle": [
         {
           "handler": "reverse_proxy",
-          "upstreams": [{ "dial": "minio:9000" }]
+          "upstreams": [{ "dial": "garage:9000" }]
         }
       ],
       "errors": {
@@ -47,7 +47,7 @@ Simpler approach using Caddyfile:
 
 ```
 myapp.bigboss.dev {
-  reverse_proxy minio:9000
+  reverse_proxy garage:9000
   handle_errors {
     rewrite * /index.html
     file_server

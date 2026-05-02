@@ -32,7 +32,7 @@ We implement step-aware failure handling, where each Build Step has its own fail
 
 - **Output directory missing or empty:** Fail with a specific error message. Not a retry — the build command is wrong. Do not assume `dist` if blank.
 
-### Step 5: Upload (S3 / MinIO)
+### Step 5: Upload (S3 / Garage)
 
 - **Network timeout:** Retry up to 3× with exponential backoff. Transient storage issues.
 - **403 Access Denied:** System error. Alert ops. Fail all queued builds immediately. Credentials are wrong — retrying will not fix this.

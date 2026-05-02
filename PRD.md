@@ -6,7 +6,7 @@ Self-hosting static sites is painful. Existing tools either lock you into a SaaS
 
 ## Solution
 
-BigBoss is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, and routes traffic via Nginx. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
+BigBoss is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to Garage, and routes traffic via Caddy. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
 
 ## User Stories
 
@@ -27,7 +27,7 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 4. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build time.
 5. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
 6. As a developer, I want to see my apps on a dashboard with last deployment status, so that I can quickly see what is deployed.
-7. As a developer, I want to delete an app, so that I can clean up unused projects.
+7. As a developer, I want to delete an app, so that I can clean up unused projects. Deleting an app removes all deployments from Garage storage and database records.
 
 ### Deployments
 
@@ -53,7 +53,7 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 2. As a developer, I want native dependencies (sharp, node-gyp) to compile, so that common image processing libraries work.
 3. As a developer, I want the build command and output directory to come from my app settings, so that the platform is flexible.
 4. As a developer, I want the platform to verify the output directory exists and is not empty after build, so that silent failures are caught with clear error messages.
-5. As a developer, I want builds to fail with a clear message if Next.js SSR is detected, so that I know to use static export mode.
+5. As a developer, I want builds to warn if Next.js SSR is detected (after build), so that I know to use static export mode.
 6. As a developer, I want path traversal in the output directory config blocked (`..`, leading `/`), so that the system cannot be tricked into extracting outside the project.
 7. As a developer, I want build logs saved to the database, so that they are available after the build completes.
 8. As a developer, I want to set a build timeout (15 min default), so that hung builds don't block the queue forever.
@@ -80,12 +80,12 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 ### Storage & Rollback
 
-1. As a developer, I want my deployed files stored in Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production under `/users/{userId}/apps/{appId}/deployments/{deploymentId}/`, so that every deployment is isolated and addressable.
+1. As a developer, I want my deployed files stored in Garage under `/users/{userId}/apps/{appId}/deployments/{deploymentId}/`, so that every deployment is isolated and addressable.
 2. As a developer, I want the platform to keep the newest 5 deployments and delete older ones automatically, so that rollback is possible without unlimited storage growth.
-3. As a developer, I want rollback to update the active deployment pointer in the database, so that Nginx can route to the correct deployment.
-4. As a platform operator, I want Nginx config to be regenerated at deploy time (not at request time), so that routing is fast and DB-free.
-5. As a developer, I want all deploys on `*.bigboss.dev` to route via Nginx to the correct S3 prefix, so that my app is accessible at a predictable URL.
-6. As a platform operator, I want Nginx config generated from templates with string replacement, so that the system stays simple.
+3. As a developer, I want rollback to update the active deployment pointer in the database, so that Caddy can route to the correct deployment.
+4. As a platform operator, I want Caddy config to be regenerated at deploy time (not at request time), so that routing is fast and DB-free.
+5. As a developer, I want all deploys on `*.bigboss.dev` to route via Caddy to the correct S3 prefix, so that my app is accessible at a predictable URL.
+6. As a platform operator, I want Caddy config generated from templates with string replacement, so that the system stays simple.
 7. As a developer, I want SPA fallback (every 404 serves index.html), so that client-side routing works in my React/Vue app.
 8. As a developer, I want the platform to store content hashes in a DB table (`deployment_files`) for future deduplication, so that the schema is ready when hashing is added.
 
@@ -107,7 +107,7 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 ### Local Dev
 
-1. As a developer, I want all services (API, worker, Redis, Postgres, Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, Nginx) in a single Docker Compose file, so that onboarding is frictionless.
+1. As a developer, I want all services (API, worker, Redis, Postgres, Garage, Caddy) in a single Docker Compose file, so that onboarding is frictionless.
 2. As a developer, I want database migrations via Drizzle, so that schema changes are versioned and reproducible.
 3. As a developer, I want all environment variables validated via Zod against a `.env.example`, so that missing config is caught early.
 4. As a developer, I want the API to hot-reload on code changes, so that I can iterate quickly.
@@ -121,13 +121,13 @@ BigBoss is a self-hosted deployment control plane for static sites. It clones Gi
 
 - **Separation of concerns.** The logical layer (deployments, rollback, app settings) is separate from the execution layer (build_jobs, queue). This allows safe retries, worker scaling, and independent state tracking.
 
-- **Storage abstraction.** The storage layer is abstracted behind an S3-compatible interface (`uploadToObjectStorage()`). This allows swapping Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production for AWS S3 in production without changing business logic.
+- **Storage abstraction.** The storage layer is abstracted behind an S3-compatible interface (`uploadToObjectStorage()`). This allows swapping Garage for AWS S3 in production without changing business logic.
 
 ### Modules
 
 1. **API Server** — Express/Fastify REST API. Auth via GitHub OAuth + session cookies stored in Redis. Endpoints for apps, deployments, envvars, logs. No business logic here — delegates to service layer.
 
-2. **Worker** — Node.js process pulling from BullMQ. Fetches deployment from DB, clones GitHub repo, runs Docker container, extracts output, uploads to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, updates deployment status, regenerates Nginx config. Stateless job processing.
+2. **Worker** — Node.js process pulling from BullMQ. Fetches deployment from DB, clones GitHub repo, runs Docker container, extracts output, uploads to Garage, updates deployment status, regenerates Caddy config. Stateless job processing.
 
 3. **Deployment Engine** — Core service layer. Orchestrates the build lifecycle. Handles step sequencing, error classification, retry logic, log streaming.
 
@@ -277,22 +277,21 @@ GET  /health                 → Health check
 7. npm run build
    - Any non-zero exit → fail immediately
 8. Verify output directory exists and is not empty
-9. Upload to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production (full upload in MVP)
+9. Upload to Garage (full upload in MVP)
 10. Keep newest 5 deployments, delete older ones
 11. Update active_deployment_id in apps
-12. Regenerate Nginx config
-13. nginx -s reload
-14. Update status: success
-15. docker rm -f (container)
+12. Send config to Caddy API (auto-reloads)
+13. Update status: success
+14. docker rm -f (container)
 ```
 
 ### Caddy Configuration
 
 - Server blocks for `*.bigboss.dev` via Caddy's built-in auto-HTTPS (Let's Encrypt)
-- `reverse_proxy` to Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production endpoint
+- `reverse_proxy` to Garage endpoint
 - SPA fallback: Caddy `handle_errors` with rewrite to `/index.html`
 - JSON API config sent to `http://caddy:2019/config/`
-- S3 path style: `http://minio:9000/bucket/users/.../`
+- S3 path style: `http://garage:9000/bucket/users/.../`
 
 ### Docker Container
 
@@ -313,22 +312,22 @@ GET  /health                 → Health check
 
 ## Testing Decisions
 
-- **Test external behavior only.** Do not test BullMQ internals, Docker SDK calls, or Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production SDK calls. Mock these at the boundary.
-- **Good tests:** Queue job creation → verify job in Redis. Trigger deploy → verify deployment status in DB. Build success → verify Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production upload, Nginx config update, status transition.
+- **Test external behavior only.** Do not test BullMQ internals, Docker SDK calls, or Garage SDK calls. Mock these at the boundary.
+- **Good tests:** Queue job creation → verify job in Redis. Trigger deploy → verify deployment status in DB. Build success → verify Garage upload, Caddy config update, status transition.
 - **Modules to test in isolation:**
   - Step-aware retry logic (Deployment Engine)
   - Env var encryption/decryption
   - Path traversal validation
   - Webhook signature validation
-  - Nginx config template generation
+  - Caddy config template generation
   - Framework auto-detection
-- **No tests in MVP:** Docker container exec, GitHub API calls, Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production uploads (these require integration test environments)
+- **No tests in MVP:** Docker container exec, GitHub API calls, Garage uploads (these require integration test environments)
 
 ## Out of Scope
 
 The following are explicitly excluded from MVP and planned for v2 or later:
 
-- Custom domains and SSL automation (Let' s Encrypt)
+- Custom domains and SSL automation (Let's Encrypt)
 - Webhook notifications for deployment events (email, Slack, external HTTP)
 - Teams and organization permissions UI (schema exists, but single-user only)
 - Content hashing for upload deduplication (schema ready, not implemented)
@@ -345,7 +344,7 @@ The following are explicitly excluded from MVP and planned for v2 or later:
 
 After MVP, the natural expansion is:
 
-- **v2:** Custom domains + Let' s Encrypt, webhook notifications, content hashing
+- **v2:** Custom domains + Let's Encrypt, webhook notifications, content hashing
 - **v3:** Teams + permissions, branch preview URLs, usage analytics
 
 ### Self-Hosted Model
@@ -357,7 +356,7 @@ BigBoss is designed to be self-hosted. The deployment target is a single server 
 This project demonstrates:
 
 - Distributed systems thinking (worker orchestration, queue management)
-- Infrastructure awareness (Docker, Nginx, Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production, storage routing)
+- Infrastructure awareness (Docker, Caddy, Garage, storage routing)
 - Control plane vs data plane separation
 - Step-aware error handling and retry logic
 - Self-hosted deployment philosophy (vs SaaS quota enforcement)

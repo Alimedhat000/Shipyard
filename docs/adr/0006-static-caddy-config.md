@@ -1,4 +1,4 @@
-# ADR-0006: Static Nginx Config at Deploy Time
+# ADR-0006: Static Caddy Config at Deploy Time
 
 ## Status
 
@@ -6,10 +6,10 @@ Accepted
 
 ## Context
 
-Nginx needs to route `myapp.bigboss.dev` to the correct MinIO prefix. Two approaches:
+Caddy needs to route `myapp.bigboss.dev` to the correct Garage prefix. Two approaches:
 
-1. **Dynamic (request-time):** Nginx queries the database per request to resolve `active_deployment_id` → S3 path.
-2. **Static (deploy-time):** Regenerate nginx.conf when a deployment succeeds or rollback happens, then `nginx -s reload`.
+1. **Dynamic (request-time):** Caddy queries the database per request to resolve `active_deployment_id` → S3 path.
+2. **Static (deploy-time):** Send JSON config to Caddy API when deployment succeeds or rollback happens.
 
 Dynamic requires a Lua module (OpenResty) or an auth_request subrequest to the API on every request. This adds latency and a DB dependency in the request path.
 
@@ -19,21 +19,33 @@ Static config generation at deploy time:
 
 1. Deployment succeeds (or rollback triggered)
 2. Read `active_deployment_id` from DB
-3. Generate nginx server block via string-replace template:
+3. Generate Caddy JSON config via string-replace template:
 
-   ```
-   server {
-     server_name myapp.bigboss.dev;
-     location / {
-       proxy_pass http://minio:9000/bucket/users/.../deployments/{activeDeploymentId}/;
+   ```json
+   {
+     "apps": {
+       "http": {
+         "servers": {
+           "sites": {
+             "listen": [":443"],
+             "routes": [{
+               "match": [{"host": ["myapp.bigboss.dev"]}],
+               "handle": [{
+                 "handler": "reverse_proxy",
+                 "upstreams": [{"dial": "garage:9000"}]
+               }]
+             }]
+           }
+         }
+       }
      }
    }
    ```
 
-4. Write to nginx config directory
-5. `nginx -s reload`
+4. Send JSON payload to Caddy Admin API (`POST /config/`)
+5. `Caddy auto-reloads upon receiving the config API update`
 
-No database lookup per request. Nginx serves purely from static config.
+No database lookup per request. Caddy serves purely from static config.
 
 ## Consequences
 
@@ -41,7 +53,7 @@ No database lookup per request. Nginx serves purely from static config.
 - Rollback is instant from user perspective (config reload is ~milliseconds).
 - Adding/removing apps requires config regeneration + reload (acceptable for low-write system).
 - Adding custom domains later requires regenerating all configs (known trade-off, acceptable).
-- No need for OpenResty or Lua — plain Nginx works.
+- No need for OpenResty or Lua — plain Caddy works.
 
 ## Alternatives Considered
 

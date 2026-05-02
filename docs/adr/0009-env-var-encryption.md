@@ -24,7 +24,7 @@ Environment variables (including secrets like API keys) are stored per-app in th
 ## Consequences
 
 - **Portable across databases.** No dependency on Postgres `pgcrypto` or any DB-specific feature. Can swap DB engines without changing encryption logic.
-- **Full control over algorithm and key rotation.** Key lives in the server env, can be rotated by updating the env var and re-encypting values.
+- **Full control over algorithm and key rotation.** Key lives in the server env, can be rotated by updating the env var and re-encrypting values.
 - **Simple to implement.** Node.js `crypto` module handles AES-256-GCM. No external service (Vault) to run and manage.
 - **Key compromise = all secrets exposed.** This is acceptable for a self-hosted tool where the operator controls the server environment.
 - **No audit log of secret access.** Acceptable for MVP; can be added later.

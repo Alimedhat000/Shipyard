@@ -24,13 +24,13 @@ apps
 
 Two different organizations can both have an app named "myapp". Within the same organization, names must be unique.
 
-The `active_deployment_id` on the app record, combined with org-scoped names, makes routing unambiguous: Nginx maps `myapp.bigboss.dev` → the app named "myapp" in the resolved organization.
+The `active_deployment_id` on the app record, combined with org-scoped names, makes routing unambiguous: Caddy maps `myapp.bigboss.dev` → the app named "myapp" in the resolved organization.
 
 ## Consequences
 
 - No artificial "name taken" errors for users in different orgs.
 - Schema naturally supports teams later: add `organization_members`, multiple users in one org, same app namespace.
-- Nginx routing stays simple: `server_name` maps to app slug, which is unique within the org.
+- Caddy routing stays simple: `server_name` maps to app slug, which is unique within the org.
 - No global name registry or cross-org name conflict checks needed.
 
 ## Alternatives Considered

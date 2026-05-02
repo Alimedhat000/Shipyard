@@ -30,7 +30,7 @@ A URL-safe identifier derived from the App name, used for routing (`myapp.bigbos
 
 ### Framework Detection
 
-Auto-detection of the frontend framework by scanning `package.json` dependencies: `vite` → Vite, `react-scripts` → CRA, `next` → Next.1js, `vue` → Vue. User can override any detected value.
+Auto-detection of the frontend framework by scanning `package.json` dependencies: `vite` → Vite, `react-scripts` → CRA, `next` → Next.js, `vue` → Vue. User can override any detected value.
 
 ### Build Step
 
@@ -70,7 +70,7 @@ Each build runs in an isolated `node:18-bullseye` Docker container with 2GB memo
 
 ### Object Storage
 
-S3-compatible blob storage for deployed artifacts. Abstracted behind an `uploadToObjectStorage()` interface using the AWS S3 SDK with `forcePathStyle: true`. Garage for local dev; Garage (self-hosted Rust S3) or Cloudflare R2 for production for local dev; AWS S3 for production. No hardcoded S3-specific logic.
+S3-compatible blob storage for deployed artifacts. Abstracted behind an `uploadToObjectStorage()` interface using the AWS S3 SDK with `forcePathStyle: true`. Garage for local dev; Garage (self-hosted) or Cloudflare R2 for production. No hardcoded S3-specific logic.
 
 ### S3 Path Structure
 
@@ -82,11 +82,11 @@ The newest 5 deployments per App are kept in object storage. Older deployments a
 
 ### Active Deployment
 
-The currently-live Deployment for an App, referenced by `active_1deployment_1id` in the App record. Rollback changes this pointer without modifying object storage.
+The currently-live Deployment for an App, referenced by `active_deployment_id` in the App record. Rollback changes this pointer without modifying object storage.
 
 ### SPA Fallback
 
-Every `404` response from Nginx returns `index.html`, enabling client-side routing in React, Vue, and similar SPAs.
+Every `404` response from Caddy returns `index.html`, enabling client-side routing in React, Vue, and similar SPAs.
 
 ### Caddy Config Generation
 
@@ -110,7 +110,7 @@ Redis-backed job queue via BullMQ. A Job contains only the `deployment_id`; all 
 
 ### Worker
 
-A Node.1.js process that connects to BullMQ, picks up Jobs, executes the build pipeline, updates Deployment status in the database, and regenerates the Nginx config. Stateless per-job execution.
+A Node.1.js process that connects to BullMQ, picks up Jobs, executes the build pipeline, updates Deployment status in the database, and regenerates the Caddy config. Stateless per-job execution.
 
 ### Heartbeat
 
