@@ -49,7 +49,7 @@ Shipyard is a self-hosted deployment control plane for static sites. It clones G
 
 ### Build Pipeline
 
-1. As a developer, I want my build to run in an isolated Docker container (`node:18-bullseye`), so that builds don't interfere with each other.
+1. As a developer, I want my build to run in an isolated Docker container (`node:22-alpine`), so that builds don't interfere with each other.
 2. As a developer, I want native dependencies (sharp, node-gyp) to compile, so that common image processing libraries work.
 3. As a developer, I want the build command and output directory to come from my app settings, so that the platform is flexible.
 4. As a developer, I want the platform to verify the output directory exists and is not empty after build, so that silent failures are caught with clear error messages.
@@ -107,7 +107,7 @@ Shipyard is a self-hosted deployment control plane for static sites. It clones G
 
 ### Local Dev
 
-1. As a developer, I want all services (API, worker, Redis, Postgres, Garage, Caddy) in a single Docker Compose file, so that onboarding is frictionless.
+1. As a developer, I want all services (API, worker, Redis, Postgres, Garage, Caddy) in a Docker Compose file with dev overrides, so that onboarding is frictionless.
 2. As a developer, I want database migrations via Drizzle, so that schema changes are versioned and reproducible.
 3. As a developer, I want all environment variables validated via Zod against a `.env.example`, so that missing config is caught early.
 4. As a developer, I want the API to hot-reload on code changes, so that I can iterate quickly.
@@ -291,11 +291,11 @@ GET  /health                 → Health check
 - `reverse_proxy` to Garage endpoint
 - SPA fallback: Caddy `handle_errors` with rewrite to `/index.html`
 - JSON API config sent to `http://caddy:2019/config/`
-- S3 path style: `http://garage:9000/bucket/users/.../`
+- S3 path style: `http://garage:3900/bucket/users/.../`
 
 ### Docker Container
 
-- Image: `node:18-bullseye`
+- Image: `node:22-alpine`
 - Pre-installed: node, npm, git, build-essential, python3
 - Network: host or bridge (configurable)
 - Memory: 2GB limit
@@ -378,7 +378,9 @@ After MVP, the natural expansion is:
 
 ### Self-Hosted Model
 
-Shipyard is designed to be self-hosted. The deployment target is a single server or small cluster (docker-compose up). There is no multi-tenant SaaS isolation layer — each self-hosted instance serves one organization. Multi-tenancy is achieved by deploying multiple instances, not by serving multiple organizations from one deployment.
+Shipyard is designed to be self-hosted. The deployment target is a single server or small cluster (`docker compose -f docker-compose.yaml up -d`). There is no multi-tenant SaaS isolation layer — each self-hosted instance serves one organization. Multi-tenancy is achieved by deploying multiple instances, not by serving multiple organizations from one deployment.
+
+Development uses `docker compose up` which auto-loads `docker-compose.override.yaml` for hot reload, source mounting, and port exposure.
 
 ### Interview Positioning
 

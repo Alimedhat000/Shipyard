@@ -1,0 +1,11 @@
+node_modules/
+dist/
+turbo/
+.turbo/
+packages/*/dist/
+packages/*/.turbo/
+packages/api/public/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store

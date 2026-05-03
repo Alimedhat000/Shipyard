@@ -71,7 +71,7 @@ When multiple git pushes arrive for the same App, the pending Build Job is cance
 
 ### Container Lifecycle
 
-Each build runs in an isolated `node:18-bullseye` Docker container with 2GB memory limit and a 15-minute timeout. On success or failure, the container is immediately removed (`docker rm -f`). Logs are extracted before removal.
+Each build runs in an isolated `node:22-alpine` Docker container with 2GB memory limit and a 15-minute timeout. On success or failure, the container is immediately removed (`docker rm -f`). Logs are extracted before removal.
 
 ## Storage & Routing
 

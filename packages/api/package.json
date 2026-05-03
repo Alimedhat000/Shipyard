@@ -1,0 +1,32 @@
+{
+  "name": "@shipyard/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/db/migrate.js && node dist/index.js",
+    "lint": "tsc --noEmit",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@shipyard/shared": "workspace:*",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.39.0",
+    "express": "^4.21.2",
+    "ioredis": "^5.6.0",
+    "pino": "^9.6.0",
+    "postgres": "^3.4.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

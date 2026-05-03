@@ -52,7 +52,7 @@ Static config generation at deploy time:
                "match": [{"host": ["myapp.bigboss.dev"]}],
                "handle": [{
                  "handler": "reverse_proxy",
-                 "upstreams": [{"dial": "garage:9000"}]
+                  "upstreams": [{"dial": "garage:3900"}]
                }]
              }]
            }

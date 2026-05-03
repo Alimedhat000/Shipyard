@@ -1,0 +1,27 @@
+{
+  "name": "@shipyard/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.738.0",
+    "@shipyard/shared": "workspace:*",
+    "dockerode": "^4.0.4",
+    "drizzle-orm": "^0.39.0",
+    "ioredis": "^5.6.0",
+    "postgres": "^3.4.6"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.31",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

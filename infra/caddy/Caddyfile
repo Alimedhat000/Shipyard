@@ -1,0 +1,12 @@
+{
+  admin localhost:2019
+}
+
+:80 {
+  root * /var/www/public
+  file_server
+
+  handle_errors {
+    respond "{err.status_code} {err.internal}"
+  }
+}

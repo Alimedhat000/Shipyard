@@ -1,0 +1,3 @@
+name: shipyard
+packages:
+  - "packages/*"

@@ -1,0 +1,10 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/worker/package.json packages/worker/
+
+RUN npm install -g pnpm@10.33.2 && \
+    pnpm install --frozen-lockfile

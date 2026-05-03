@@ -1,74 +1,39 @@
-# ADR-0004: SPA Fallback via Caddy
+# ADR-0004: SPA Fallback via nginx and Caddy
 
 ## Status
 
-Accepted
+Accepted (updated)
 
 ## Context
 
-Shipyard deploys static sites (React, Vue, Svelte, etc.) that use client-side routing. When a user navigates to `/dashboard` directly, the browser requests that path from Caddy. If there is no literal file at `/dashboard`, Caddy returns 404. The SPA's `index.html` is never loaded, and client-side routing fails.
+Shipyard deploys static sites (React, Vue, Svelte, etc.) that use client-side routing. When a user navigates to `/dashboard` directly, the browser requests that path. If there is no literal file, the server must return `index.html` so the SPA can boot and handle routing.
 
-Vercel, Netlify, and similar platforms all implement SPA fallback — serving `index.html` on any 404 — as a core feature. Without it, every SPA with client-side routing is broken on first load of any non-root path.
+The API previously served `public/index.html` as a fallback, but this mixed concerns — the API should not serve static files. The separation is:
+
+- **Web container** (nginx) serves the SPA built output
+- **Caddy** reverse-proxies user domains to Garage storage
+- **API** serves only REST endpoints
 
 ## Decision
 
-Configure Caddy to serve `index.html` on all 404 responses using the `try_files` equivalent in Caddy's file_server:
+### Development
 
-```json
-{
-  "routes": [
-    {
-      "match": [{ "host": ["myapp.bigboss.dev"] }],
-      "handle": [
-        {
-          "handler": "reverse_proxy",
-          "upstreams": [{ "dial": "garage:9000" }]
-        }
-      ],
-      "errors": {
-        "routes": [
-          {
-            "match": [{ "status": ["404"] }],
-            "handle": [
-              {
-                "handler": "static_response",
-                "body": "{http.reverse_proxy.upstream.buf}"
-              }
-            ]
-          }
-        ]
-      }
-    }
-  ]
-}
-```
+Vite dev server handles SPA fallback natively. The API has no static file serving.
 
-Simpler approach using Caddyfile:
+### Production
 
-```
-myapp.bigboss.dev {
-  reverse_proxy garage:9000
-  handle_errors {
-    rewrite * /index.html
-    file_server
-  }
-}
-```
+nginx in the web container serves the SPA via `try_files $uri $uri/ /index.html`. The `nginx.conf` proxies `/api/` and `/health` to the API container.
 
-The JSON config is sent to Caddy's `/config/` API endpoint at deploy time. Caddy automatically reloads and applies the new config.
+Caddy routes custom domains to Garage storage with its own `handle_errors` for SPA fallback when serving from object storage.
 
 ## Consequences
 
-- SPAs with React Router, Vue Router, etc. work correctly on first load of any route.
-- No changes needed in the build pipeline or storage layer — purely a Caddy concern.
-- The SPA fallback is configured at deploy time when sending config to Caddy's API.
-- This is transparent to users — they don't need to configure anything. It's a platform default.
-- Caddy's built-in auto-HTTPS with Let's Encrypt handles wildcard certs (`*.bigboss.dev`) automatically.
-- One caveat: any genuine 404 (missing static asset like `logo.png`) will also return `index.html` with a 200 status. This is standard SPA behavior and client-side apps handle it gracefully.
+- Clean separation: API never deals with static files.
+- Web container is self-contained SPA serving with its own nginx.
+- Caddy handles domain routing independently.
+- One caveat: genuine 404s (missing static assets) return `index.html` with 200 status. Standard SPA behavior.
 
 ## Alternatives Considered
 
-- **No SPA fallback (rejected):** Would break every React/Vue app with client-side routing. Unacceptable for a static site platform.
-- **SPA detection + conditional fallback (rejected):** Would require knowing if the app is an SPA. Too much complexity. Apply fallback universally — it doesn't hurt non-SPA static sites.
-- **Nginx with error_page (rejected):** Nginx requires template-based config generation and `nginx -s reload`. Caddy's JSON API is simpler for code-driven systems and includes auto-HTTPS.
-
+- **API serves SPA (rejected):** Mixed concerns. API container becomes responsible for frontend.
+- **Single Caddy for everything (considered for v2):** Caddy could serve the SPA and proxy API. Simpler topology but requires Caddy config complexity.

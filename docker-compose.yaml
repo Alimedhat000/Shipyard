@@ -1,0 +1,145 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shipyard-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shipyard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shipyard}
+      POSTGRES_DB: ${POSTGRES_DB:-shipyard}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shipyard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+  redis:
+    image: redis:7-alpine
+    container_name: shipyard-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+  garage:
+    image: dxflrs/amd64_garage:v2.2.0
+    container_name: shipyard-garage
+    volumes:
+      - garage_data:/var/lib/garage
+      - ./infra/garage.toml:/etc/garage.toml:ro
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: shipyard-caddy
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    container_name: shipyard-api
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-shipyard}:${POSTGRES_PASSWORD:-shipyard}@postgres:5432/${POSTGRES_DB:-shipyard}
+      REDIS_URL: redis://redis:6379
+      GARAGE_S3_ENDPOINT: http://garage:3900
+      GARAGE_S3_ACCESS_KEY: ${GARAGE_S3_ACCESS_KEY:-garage_key}
+      GARAGE_S3_SECRET_KEY: ${GARAGE_S3_SECRET_KEY:-garage_secret}
+      GARAGE_S3_BUCKET: ${GARAGE_S3_BUCKET:-shipyard}
+      CADDY_ADMIN_URL: http://caddy:2019
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-http://localhost:3000/api/auth/github/callback}
+      API_SECRET: ${API_SECRET:-change_me}
+      SESSION_SECRET: ${SESSION_SECRET:-change_me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-32_char_encryption_key_here_xxxx}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      garage:
+        condition: service_started
+      caddy:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+  worker:
+    build:
+      context: .
+      dockerfile: packages/worker/Dockerfile
+    container_name: shipyard-worker
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-shipyard}:${POSTGRES_PASSWORD:-shipyard}@postgres:5432/${POSTGRES_DB:-shipyard}
+      REDIS_URL: redis://redis:6379
+      GARAGE_S3_ENDPOINT: http://garage:3900
+      GARAGE_S3_ACCESS_KEY: ${GARAGE_S3_ACCESS_KEY:-garage_key}
+      GARAGE_S3_SECRET_KEY: ${GARAGE_S3_SECRET_KEY:-garage_secret}
+      GARAGE_S3_BUCKET: ${GARAGE_S3_BUCKET:-shipyard}
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      garage:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    container_name: shipyard-web
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - shipyard
+
+volumes:
+  postgres_data:
+  redis_data:
+  garage_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  shipyard:
+    driver: bridge

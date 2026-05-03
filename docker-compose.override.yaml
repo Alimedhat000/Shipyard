@@ -1,0 +1,52 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  garage:
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3903:3903"
+
+  caddy:
+    ports:
+      - "2019:2019"
+
+  api:
+    build:
+      dockerfile: packages/api/Dockerfile.dev
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./packages/api:/app/packages/api
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+    command: pnpm --filter @shipyard/api run dev
+
+  worker:
+    build:
+      dockerfile: packages/worker/Dockerfile.dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./packages/worker:/app/packages/worker
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+    command: pnpm --filter @shipyard/worker run dev
+
+  web:
+    build:
+      dockerfile: packages/web/Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./packages/web:/app/packages/web
+      - /app/node_modules
+    command: pnpm --filter @shipyard/web dev --host
