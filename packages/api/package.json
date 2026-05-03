@@ -7,6 +7,7 @@
 		"dev": "tsx watch src/index.ts",
 		"build": "tsc",
 		"start": "node dist/db/migrate.js && node dist/index.js",
+		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
 		"test": "echo \"No tests yet\" && exit 0"
 	},

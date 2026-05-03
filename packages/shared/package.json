@@ -10,6 +10,7 @@
 	},
 	"scripts": {
 		"build": "tsc",
+		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
 		"test": "echo \"No tests yet\" && exit 0"
 	},
