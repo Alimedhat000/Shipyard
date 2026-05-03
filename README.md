@@ -9,14 +9,14 @@ cp .env.example .env
 docker compose up --build
 ```
 
-| Service | Port |
-|---|---|
+| Service        | Port                    |
+| -------------- | ----------------------- |
 | Web (Vite dev) | `http://localhost:5173` |
-| API | `http://localhost:3000` |
-| Postgres | `localhost:5432` |
-| Redis | `localhost:6379` |
-| Garage S3 | `http://localhost:3900` |
-| Caddy | `http://localhost:80` |
+| API            | `http://localhost:3000` |
+| Postgres       | `localhost:5432`        |
+| Redis          | `localhost:6379`        |
+| Garage S3      | `http://localhost:3900` |
+| Caddy          | `http://localhost:80`   |
 
 ## Architecture
 
@@ -26,15 +26,15 @@ docker compose up --build
 │ (React)  │     │ (Express)│     │ (BullMQ) │
 └──────────┘     └────┬─────┘     └────┬─────┘
                       │                │
-               ┌──────┴────────────────┴──────┐
-               │                              │
-          ┌────┴───┐    ┌────────┐    ┌──────┴──────┐
-          │ Postgres│    │ Redis  │    │ Garage (S3) │
-          └────────┘    └────────┘    └─────────────┘
-                                        │
-                                    ┌───┴───┐
-                                    │ Caddy │
-                                    └───────┘
+               ┌──────┴────────────────┴───────┐
+               │                               │
+          ┌────┴─────┐    ┌────────┐    ┌──────┴──────┐
+          │ Postgres │    │ Redis  │    │ Garage (S3) │
+          └──────────┘    └────────┘    └─────────────┘
+                                               │
+                                          ┌────┴────┐
+                                          │  Caddy  │
+                                          └─────────┘
 ```
 
 - **API** — Express.js REST API. GitHub OAuth, session management, CRUD for apps/deployments.
@@ -47,11 +47,11 @@ docker compose up --build
 
 ### Hot Reload
 
-| Service | Mechanism |
-|---|---|
-| API | `tsx watch` — restarts on `.ts` changes |
-| Worker | `tsx watch` — restarts on `.ts` changes |
-| Web | Vite HMR — instant updates for `.tsx`/`.css` |
+| Service | Mechanism                                    |
+| ------- | -------------------------------------------- |
+| API     | `tsx watch` — restarts on `.ts` changes      |
+| Worker  | `tsx watch` — restarts on `.ts` changes      |
+| Web     | Vite HMR — instant updates for `.tsx`/`.css` |
 
 ### Commands
 
