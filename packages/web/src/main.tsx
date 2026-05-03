@@ -1,5 +1,7 @@
-import { createRoot } from 'react-dom/client';
-import './styles.css';
+import { createRoot } from "react-dom/client";
+import "./styles.css";
 
-const root = createRoot(document.getElementById('root')!);
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error("Root element not found");
+const root = createRoot(rootElement);
 root.render(<h1>Shipyard</h1>);
