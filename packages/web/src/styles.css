@@ -1,10 +1,10 @@
 body {
-  font-family: system-ui, sans-serif;
-  margin: 0;
-  padding: 20px;
+	font-family: system-ui, sans-serif;
+	margin: 0;
+	padding: 20px;
 }
 
 #root {
-  max-width: 800px;
-  margin: 0 auto;
+	max-width: 800px;
+	margin: 0 auto;
 }
