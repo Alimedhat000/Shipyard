@@ -74,4 +74,24 @@ describe("decrypt", () => {
 		const decrypted = decrypt(encrypted, TEST_KEY);
 		expect(decrypted).toBe(longText);
 	});
+
+	it("should throw when using wrong key", () => {
+		const encrypted = encrypt("secret", TEST_KEY);
+		const wrongKey = "b".repeat(64);
+		expect(() => decrypt(encrypted, wrongKey)).toThrow();
+	});
+
+	it("should throw on invalid hex in encrypted string", () => {
+		expect(() => decrypt("zzzz:aaaa:bbbb", TEST_KEY)).toThrow();
+	});
+
+	it("should throw when encrypted has only 1 part", () => {
+		expect(() => decrypt("onlyonepart", TEST_KEY)).toThrow(
+			"Invalid encrypted format",
+		);
+	});
+
+	it("should throw when encrypted has only 2 parts", () => {
+		expect(() => decrypt("part1:part2", TEST_KEY)).toThrow();
+	});
 });
