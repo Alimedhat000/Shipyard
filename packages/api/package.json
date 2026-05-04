@@ -9,7 +9,8 @@
 		"start": "node dist/db/migrate.js && node dist/index.js",
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
-		"test": "echo \"No tests yet\" && exit 0"
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@shipyard/shared": "workspace:*",
@@ -28,6 +29,7 @@
 		"@types/express": "^5.0.1",
 		"@types/node": "^22.13.4",
 		"tsx": "^4.19.2",
-		"typescript": "^5.7.3"
+		"typescript": "^5.7.3",
+		"vitest": "^3.0.0"
 	}
 }
