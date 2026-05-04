@@ -202,6 +202,9 @@ export const sessions = pgTable(
 		userId: uuid("user_id")
 			.references(() => users.id)
 			.notNull(),
+		orgId: uuid("org_id")
+			.references(() => organizations.id)
+			.notNull(),
 		token: varchar("token", { length: 255 }).notNull().unique(),
 		expiresAt: timestamp("expires_at").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
