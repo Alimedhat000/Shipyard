@@ -9,6 +9,7 @@
 		"build": "turbo run build",
 		"lint": "turbo run lint",
 		"format": "biome format --write .",
+		"lint:fix": "biome check --fix .",
 		"typecheck": "turbo run typecheck",
 		"test": "turbo run test",
 		"db:generate": "drizzle-kit generate",
