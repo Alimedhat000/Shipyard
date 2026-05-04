@@ -14,6 +14,7 @@ export const envSchema = z.object({
 	API_SECRET: z.string().min(1),
 	SESSION_SECRET: z.string().min(1),
 	ENCRYPTION_KEY: z.string().min(32), // used for the AES-256-GCM algorithm
+	SESSION_TTL: z.string().default("604800"), // 7 days in seconds
 	NODE_ENV: z.string().default("development"),
 	PORT: z.string().default("3000"),
 });
