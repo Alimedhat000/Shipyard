@@ -27,6 +27,6 @@
 		"drizzle-kit": "^0.30.1"
 	},
 	"simple-git-hooks": {
-		"pre-commit": "pnpm exec biome check --staged --write"
+		"pre-commit": "pnpm exec biome check --staged --write && git add -u"
 	}
 }
