@@ -12,13 +12,14 @@
 		"build": "tsc",
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
-		"test": "echo \"No tests yet\" && exit 0"
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.39.0"
 	},
 	"devDependencies": {
 		"@types/node": "^22.13.4",
-		"typescript": "^5.7.3"
+		"typescript": "^5.7.3",
+		"vitest": "^3.0.0"
 	}
 }
