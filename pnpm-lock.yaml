@@ -82,6 +82,9 @@ importers:
       drizzle-orm:
         specifier: ^0.39.0
         version: 0.39.3(postgres@3.4.9)
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.13.4
