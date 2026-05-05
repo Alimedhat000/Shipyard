@@ -1,4 +1,4 @@
-import { createRequire } from "module";
+import { createRequire } from "node:module";
 import supertest from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getEnv } from "../../src/config/env.js";
@@ -69,6 +69,7 @@ vi.mock("../../src/services/session.js", () => ({
 	createSession: vi.fn().mockResolvedValue("mock-session-token"),
 	getSession: vi.fn(),
 	deleteSession: vi.fn().mockResolvedValue(undefined),
+	SESSION_TTL_MS: 604800000,
 }));
 
 function createTestApp() {
@@ -85,10 +86,10 @@ describe("auth routes", () => {
 		vi.clearAllMocks();
 	});
 
-	describe("POST /api/auth/github", () => {
+	describe("GET /api/auth/github", () => {
 		it("redirects to GitHub OAuth with correct parameters", async () => {
 			const app = createTestApp();
-			const res = await supertest(app).post("/api/auth/github").expect(302);
+			const res = await supertest(app).get("/api/auth/github").expect(302);
 
 			const location = res.header.location;
 			expect(location).toContain("https://github.com/login/oauth/authorize");
@@ -231,7 +232,7 @@ describe("auth routes", () => {
 				.query({ code: "invalid_code" })
 				.expect(302);
 
-			expect(res.header.location).toContain("/login?error=");
+			expect(res.header.location).toBe("/login?error=auth_failed");
 		});
 	});
 });
