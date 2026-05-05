@@ -39,8 +39,8 @@ vi.mock("drizzle-orm", () => ({
 	and: vi.fn().mockImplementation((...args) => ({ __type: "and", args })),
 }));
 
-vi.mock("../../src/plugins/db.js", () => ({
-	db: {
+vi.mock("../../src/plugins/db.js", () => {
+	const mockDb = {
 		insert: vi.fn().mockReturnValue({
 			values: vi.fn().mockReturnValue({
 				onConflictDoUpdate: vi.fn().mockReturnValue({
@@ -51,6 +51,9 @@ vi.mock("../../src/plugins/db.js", () => ({
 							githubUsername: "testuser",
 						},
 					]),
+				}),
+				onConflictDoNothing: vi.fn().mockReturnValue({
+					returning: vi.fn().mockResolvedValue([]),
 				}),
 				returning: vi.fn().mockResolvedValue([
 					{
@@ -78,8 +81,12 @@ vi.mock("../../src/plugins/db.js", () => ({
 				findFirst: vi.fn().mockResolvedValue(null),
 			},
 		},
-	},
-}));
+	};
+
+	mockDb.transaction = vi.fn().mockImplementation(async (cb) => cb(mockDb));
+
+	return { db: mockDb };
+});
 
 describe("auth service", () => {
 	beforeEach(() => {
@@ -174,12 +181,28 @@ describe("auth service", () => {
 		it("throws on 403 - rate limited", async () => {
 			global.fetch = vi.fn().mockResolvedValue({
 				status: 403,
-				headers: new Headers({ "X-RateLimit-Reset": "1234567890" }),
+				headers: new Headers({
+					"X-RateLimit-Remaining": "0",
+					"X-RateLimit-Reset": "1234567890",
+				}),
 				json: vi.fn().mockResolvedValue({}),
 			});
 
 			await expect(getGithubUser("test_token")).rejects.toThrow(
 				"GitHub API rate limited",
+			);
+		});
+
+		it("throws on 403 - forbidden (not rate limited)", async () => {
+			global.fetch = vi.fn().mockResolvedValue({
+				status: 403,
+				statusText: "Forbidden",
+				headers: new Headers({ "X-RateLimit-Remaining": "500" }),
+				json: vi.fn().mockResolvedValue({}),
+			});
+
+			await expect(getGithubUser("test_token")).rejects.toThrow(
+				"GitHub API forbidden",
 			);
 		});
 
@@ -280,6 +303,15 @@ describe("auth service", () => {
 					// Org insert
 					return {
 						values: vi.fn().mockReturnValue({
+							onConflictDoNothing: vi.fn().mockReturnValue({
+								returning: vi.fn().mockResolvedValue([
+									{
+										id: "new-org-id",
+										name: "newuser",
+										slug: "newuser",
+									},
+								]),
+							}),
 							returning: vi.fn().mockResolvedValue([
 								{
 									id: "new-org-id",
@@ -343,6 +375,15 @@ describe("auth service", () => {
 				if (table === organizations) {
 					return {
 						values: vi.fn().mockReturnValue({
+							onConflictDoNothing: vi.fn().mockReturnValue({
+								returning: vi.fn().mockResolvedValue([
+									{
+										id: "existing-org-id",
+										name: "existinguser",
+										slug: "existinguser",
+									},
+								]),
+							}),
 							returning: vi.fn().mockResolvedValue([
 								{
 									id: "existing-org-id",

@@ -39,10 +39,8 @@ vi.mock("ioredis", () => {
 vi.mock("../../src/plugins/db.js", () => ({
 	db: {
 		insert: vi.fn().mockReturnValue({
-			values: vi.fn().mockReturnValue({
-				catch: vi.fn().mockResolvedValue(undefined),
-				returning: vi.fn().mockResolvedValue([{ id: "test-session-id" }]),
-			}),
+			values: vi.fn().mockResolvedValue(undefined),
+			returning: vi.fn().mockResolvedValue([{ id: "test-session-id" }]),
 		}),
 		delete: vi.fn().mockReturnValue({
 			where: vi.fn().mockResolvedValue(undefined),

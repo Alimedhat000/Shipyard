@@ -12,7 +12,7 @@ import {
 	githubTokenSuccessSchema,
 	githubUserSchema,
 } from "@shipyard/shared/validators";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getEnv } from "../config/env.js";
 import { db } from "../plugins/db.js";
 
@@ -93,8 +93,12 @@ export async function getGithubUser(accessToken: string): Promise<GithubUser> {
 
 	// handle rate limit cuz of you, you evil user ( ｡ •̀ ᴖ •́ ｡)!
 	if (res.status === 403) {
-		const resetTime = res.headers.get("X-RateLimit-Reset");
-		throw new Error(`GitHub API rate limited. Resets at ${resetTime}`);
+		const remaining = res.headers.get("X-RateLimit-Remaining");
+		if (remaining === "0") {
+			const resetTime = res.headers.get("X-RateLimit-Reset");
+			throw new Error(`GitHub API rate limited. Resets at ${resetTime}`);
+		}
+		throw new Error(`GitHub API forbidden: ${res.status} ${res.statusText}`);
 	}
 
 	if (!res.ok) {
@@ -155,62 +159,78 @@ export async function createOrUpdateUser(
 }> {
 	const env = getEnv();
 	const encryptedToken = encrypt(accessToken, env.ENCRYPTION_KEY);
+	const email = githubUser.email ?? (await getGithubEmail(accessToken));
 
-	const [user] = await db
-		.insert(users)
-		.values({
-			githubId: String(githubUser.id),
-			githubUsername: githubUser.login,
-			githubAccessToken: encryptedToken,
-			email: githubUser.email,
-			avatarUrl: githubUser.avatar_url,
-		})
-		.onConflictDoUpdate({
-			target: users.githubId,
-			set: {
+	return db.transaction(async (tx) => {
+		const [user] = await tx
+			.insert(users)
+			.values({
+				githubId: String(githubUser.id),
 				githubUsername: githubUser.login,
 				githubAccessToken: encryptedToken,
-				email: githubUser.email,
+				email,
 				avatarUrl: githubUser.avatar_url,
-			},
-		})
-		.returning();
-
-	let [org] = await db
-		.select()
-		.from(organizations)
-		.where(eq(organizations.slug, githubUser.login));
-
-	if (!org) {
-		[org] = await db
-			.insert(organizations)
-			.values({
-				name: githubUser.login,
-				slug: githubUser.login,
+			})
+			.onConflictDoUpdate({
+				target: users.githubId,
+				set: {
+					githubUsername: githubUser.login,
+					githubAccessToken: encryptedToken,
+					avatarUrl: githubUser.avatar_url,
+					email,
+				},
 			})
 			.returning();
-	}
 
-	const existingMember = await db
-		.select()
-		.from(organizationMembers)
-		.where(
-			and(
-				eq(organizationMembers.userId, user.id),
-				eq(organizationMembers.organizationId, org.id),
-			),
-		)
-		.limit(1);
-
-	if (!existingMember.length) {
-		await db.insert(organizationMembers).values({
-			userId: user.id,
-			organizationId: org.id,
-			role: "owner",
+		const member = await tx.query.organizationMembers.findFirst({
+			where: eq(organizationMembers.userId, user.id),
 		});
-	}
 
-	return { user, org };
+		let org: typeof organizations.$inferSelect;
+
+		if (member) {
+			const found = await tx.query.organizations.findFirst({
+				where: eq(organizations.id, member.organizationId),
+			});
+			if (!found) {
+				throw new Error(
+					`Organization ${member.organizationId} not found for user ${user.id}`,
+				);
+			}
+			org = found;
+		} else {
+			const inserted = await tx
+				.insert(organizations)
+				.values({
+					name: githubUser.login,
+					slug: githubUser.login,
+				})
+				.onConflictDoNothing()
+				.returning();
+
+			if (inserted.length === 0) {
+				const found = await tx.query.organizations.findFirst({
+					where: eq(organizations.slug, githubUser.login),
+				});
+				if (!found) {
+					throw new Error(
+						`Organization with slug "${githubUser.login}" not found after conflict`,
+					);
+				}
+				org = found;
+			} else {
+				org = inserted[0];
+			}
+
+			await tx.insert(organizationMembers).values({
+				userId: user.id,
+				organizationId: org.id,
+				role: "owner",
+			});
+		}
+
+		return { user, org };
+	});
 }
 
 /**

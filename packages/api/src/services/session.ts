@@ -6,6 +6,18 @@ import { getEnv } from "../config/env";
 import { db } from "../plugins/db";
 import { redis } from "../plugins/redis";
 
+export const SESSION_TTL_SECONDS = (() => {
+	const val = parseInt(getEnv().SESSION_TTL, 10);
+	if (!Number.isFinite(val) || val <= 0) {
+		throw new Error(
+			`Invalid SESSION_TTL: "${getEnv().SESSION_TTL}" — must be a positive integer`,
+		);
+	}
+	return val;
+})();
+
+export const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
+
 /**
  * Creates a new session for a user.
  * Hybrid storage: Redis (primary) + Postgres (backup).
@@ -22,18 +34,23 @@ export async function createSession(
 	userId: string,
 	orgId: string,
 ): Promise<string> {
-	const TTL = parseInt(getEnv().SESSION_TTL, 10);
 	const token = randomBytes(32).toString("hex");
 	const sessionData: SessionData = { userId, orgId };
 
-	await redis.setex(`session:${token}`, TTL, JSON.stringify(sessionData));
+	await redis.setex(
+		`session:${token}`,
+		SESSION_TTL_SECONDS,
+		JSON.stringify(sessionData),
+	);
 
+	// Best-effort backup to Postgres (Redis is primary for reads/writes).
+	// A failure here won't prevent login, but session won't survive Redis restarts.
 	db.insert(sessions)
 		.values({
 			userId,
 			orgId,
 			token,
-			expiresAt: new Date(Date.now() + TTL * 1000),
+			expiresAt: new Date(Date.now() + SESSION_TTL_MS),
 		})
 		.catch((err) => {
 			console.error("Session DB write failed:", err);
@@ -55,8 +72,6 @@ export async function createSession(
  * // { userId: "uuid", orgId: "uuid" }
  */
 export async function getSession(token: string): Promise<SessionData | null> {
-	const TTL = parseInt(getEnv().SESSION_TTL, 10);
-
 	const cached = await redis.get(`session:${token}`);
 	if (cached) {
 		return JSON.parse(cached) as SessionData;
@@ -75,7 +90,15 @@ export async function getSession(token: string): Promise<SessionData | null> {
 		orgId: session.orgId,
 	};
 
-	await redis.setex(`session:${token}`, TTL, JSON.stringify(sessionData));
+	const remainingSeconds = Math.floor(
+		(session.expiresAt.getTime() - Date.now()) / 1000,
+	);
+
+	await redis.setex(
+		`session:${token}`,
+		remainingSeconds,
+		JSON.stringify(sessionData),
+	);
 	return sessionData;
 }
 

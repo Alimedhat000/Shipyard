@@ -10,19 +10,20 @@ import {
 	createSession,
 	deleteSession,
 	getSession,
+	SESSION_TTL_MS,
 } from "../services/session.js";
 
 export function createAuthRouter() {
 	const router = Router();
 
-	router.post("/github", (_req, res) => {
+	router.get("/github", (_req, res) => {
 		const env = getEnv();
-		const url =
-			`https://github.com/login/oauth/authorize` +
-			`?client_id=${encodeURIComponent(env.GITHUB_CLIENT_ID)}` +
-			`&redirect_uri=${encodeURIComponent(env.GITHUB_CALLBACK_URL)}` +
-			`&scope=${encodeURIComponent("repo").replace(/%20/g, "+")}+${encodeURIComponent("read:user").replace(/%20/g, "+")}`;
-		res.redirect(url);
+		const params = new URLSearchParams({
+			client_id: env.GITHUB_CLIENT_ID,
+			redirect_uri: env.GITHUB_CALLBACK_URL,
+			scope: "repo read:user",
+		});
+		res.redirect(`https://github.com/login/oauth/authorize?${params}`);
 	});
 
 	router.get("/github/callback", async (req, res) => {
@@ -44,54 +45,64 @@ export function createAuthRouter() {
 				httpOnly: true,
 				secure: env.NODE_ENV === "production",
 				sameSite: "lax",
-				maxAge: parseInt(env.SESSION_TTL, 10) * 1000,
+				maxAge: SESSION_TTL_MS,
 				path: "/",
 			});
 
 			res.redirect("/dashboard");
 		} catch (err) {
-			const message = err instanceof Error ? err.message : "unknown_error";
-			res.redirect(`/login?error=${encodeURIComponent(message)}`);
+			if (err instanceof Error) {
+				console.error("OAuth callback error:", err.message);
+			}
+			res.redirect("/login?error=auth_failed");
 		}
 	});
 
 	router.get("/me", async (req, res) => {
-		const token = req.cookies?.session_token;
+		try {
+			const token = req.cookies?.session_token;
 
-		if (!token) {
-			res.json(null);
-			return;
+			if (!token) {
+				res.json(null);
+				return;
+			}
+
+			const session = await getSession(token);
+
+			if (!session) {
+				res.json(null);
+				return;
+			}
+
+			const data = await getUserWithOrg(session.userId);
+
+			if (!data) {
+				res.json(null);
+				return;
+			}
+
+			res.json({
+				user: data.user,
+				organization: data.organization,
+			});
+		} catch {
+			res.status(500).json({ error: "internal_error" });
 		}
-
-		const session = await getSession(token);
-
-		if (!session) {
-			res.json(null);
-			return;
-		}
-
-		const data = await getUserWithOrg(session.userId);
-
-		if (!data) {
-			res.json(null);
-			return;
-		}
-
-		res.json({
-			user: data.user,
-			organization: data.organization,
-		});
 	});
 
 	router.post("/logout", async (req, res) => {
-		const token = req.cookies?.session_token;
+		try {
+			const token = req.cookies?.session_token;
 
-		if (token) {
-			await deleteSession(token);
+			if (token) {
+				await deleteSession(token);
+			}
+
+			res.clearCookie("session_token", { path: "/" });
+			res.json({ success: true });
+		} catch {
+			res.status(500).json({ error: "internal_error" });
 		}
-
-		res.clearCookie("session_token", { path: "/" });
-		res.json({ success: true });
 	});
 
 	return router;
