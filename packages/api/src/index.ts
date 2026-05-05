@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import pino from "pino";
 import { getEnv } from "./config/env.js";
+import { createAuthRouter } from "./routes/auth.js";
 import { createHealthRouter } from "./routes/health.js";
 
 const logger = pino();
@@ -34,6 +35,7 @@ app.use((req, res, next) => {
 });
 
 // API routes
+app.use("/api/auth", createAuthRouter());
 app.use("/api/health", createHealthRouter());
 
 // 404 fallback
