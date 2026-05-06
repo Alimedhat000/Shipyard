@@ -49,7 +49,8 @@ export function createAuthRouter() {
 				path: "/",
 			});
 
-			res.redirect("/dashboard");
+			const frontendUrl = env.FRONTEND_URL || "http://localhost:5173";
+			res.redirect(`${frontendUrl}/dashboard`);
 		} catch (err) {
 			if (err instanceof Error) {
 				console.error("OAuth callback error:", err.message);

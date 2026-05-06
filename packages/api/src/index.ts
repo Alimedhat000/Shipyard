@@ -44,9 +44,24 @@ app.use((_req, res) => {
 });
 
 const port = parseInt(env.PORT, 10);
-
-app.listen(port, () => {
+const server = app.listen(port, () => {
 	logger.info({ port }, `Shipyard API started on port ${port}`);
 });
+
+// Graceful shutdown
+function shutdown(signal: string) {
+	logger.info({ signal }, "Shutting down...");
+	server.close(() => {
+		logger.info("Server closed");
+		process.exit(0);
+	});
+	// Force exit after 5s
+	setTimeout(() => {
+		logger.error("Forced shutdown after timeout");
+		process.exit(1);
+	}, 5000);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 export default app;

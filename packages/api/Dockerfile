@@ -5,10 +5,9 @@ WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/api/package.json packages/api/
-COPY packages/worker/package.json packages/worker/
 
 RUN npm install -g pnpm@10.33.2 && \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --filter @shipyard/api...
 
 COPY . .
 
@@ -24,11 +23,11 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/api/package.json packages/api/
 
 RUN npm install -g pnpm@10.33.2 && \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --frozen-lockfile --prod --filter @shipyard/api...
 
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/
 COPY --from=builder /app/packages/api/dist packages/api/dist/
-COPY drizzle/ drizzle/
+COPY --from=builder /app/drizzle drizzle/
 
 EXPOSE 3000
 

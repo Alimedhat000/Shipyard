@@ -14,7 +14,7 @@ async function main() {
 	const db = drizzle(client, { schema });
 
 	await migrate(db, {
-		migrationsFolder: new URL("../../../drizzle", import.meta.url).pathname,
+		migrationsFolder: new URL("../../../../drizzle", import.meta.url).pathname,
 	});
 	await client.end();
 	console.log("migrations complete");

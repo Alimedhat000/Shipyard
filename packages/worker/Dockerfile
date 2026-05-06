@@ -7,7 +7,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/worker/package.json packages/worker/
 
 RUN npm install -g pnpm@10.33.2 && \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --filter @shipyard/worker...
 
 COPY . .
 
@@ -23,7 +23,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/worker/package.json packages/worker/
 
 RUN npm install -g pnpm@10.33.2 && \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --frozen-lockfile --prod --filter @shipyard/worker...
 
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/
 COPY --from=builder /app/packages/worker/dist packages/worker/dist/
