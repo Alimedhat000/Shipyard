@@ -3,6 +3,7 @@ import { sessions } from "@shipyard/shared/schema";
 import type { SessionData } from "@shipyard/shared/types";
 import { eq } from "drizzle-orm";
 import { getEnv } from "../config/env";
+import { logger } from "../config/logger.js";
 import { db } from "../plugins/db";
 import { redis } from "../plugins/redis";
 
@@ -53,7 +54,7 @@ export async function createSession(
 			expiresAt: new Date(Date.now() + SESSION_TTL_MS),
 		})
 		.catch((err) => {
-			console.error("Session DB write failed:", err);
+			logger.error({ err }, "Session DB write failed");
 		});
 
 	return token;

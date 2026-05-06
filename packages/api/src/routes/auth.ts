@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getEnv } from "../config/env.js";
+import { logger } from "../config/logger.js";
 import {
 	createOrUpdateUser,
 	exchangeCodeForToken,
@@ -53,7 +54,7 @@ export function createAuthRouter() {
 			res.redirect(`${frontendUrl}/dashboard`);
 		} catch (err) {
 			if (err instanceof Error) {
-				console.error("OAuth callback error:", err.message);
+				logger.error({ err: err.message }, "OAuth callback error");
 			}
 			res.redirect("/login?error=auth_failed");
 		}
