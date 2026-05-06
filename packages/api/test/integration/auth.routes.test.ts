@@ -210,7 +210,10 @@ describe("auth routes", () => {
 				.query({ code: "valid_code" })
 				.expect(302);
 
-			expect(res.header.location).toBe("/dashboard");
+			const { FRONTEND_URL } = getEnv();
+			expect(res.header.location).toBe(
+				`${FRONTEND_URL || "http://localhost:5173"}/dashboard`,
+			);
 
 			const cookies = res.header["set-cookie"];
 			expect(cookies).toBeDefined();
