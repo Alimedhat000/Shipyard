@@ -17,6 +17,7 @@ const testEnv = {
 		"ded637fc26820406b811e228d84a0c26dc8b561d6d7fea7ecd0d980b2544cc61",
 	SESSION_TTL: "604800",
 	NODE_ENV: "test",
+	FRONTEND_URL: "http://localhost:5173",
 };
 
 Object.entries(testEnv).forEach(([key, value]) => {
