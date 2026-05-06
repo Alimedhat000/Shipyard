@@ -7,7 +7,7 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/web/package.json packages/web/
 
 RUN npm install -g pnpm@10.33.2 && \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --frozen-lockfile --prod --filter @shipyard/web...
 
 COPY . .
 

@@ -27,8 +27,9 @@ services:
     volumes:
       - ./packages/api:/app/packages/api
       - ./packages/shared:/app/packages/shared
+      - ./drizzle:/app/drizzle
       - /app/node_modules
-    command: pnpm --filter @shipyard/api run dev
+    command: sh -c "cd /app/packages/api && npx tsx src/db/migrate.ts && pnpm run dev"
 
   worker:
     build:
@@ -44,9 +45,10 @@ services:
   web:
     build:
       dockerfile: packages/web/Dockerfile.dev
+    environment:
+      VITE_API_PROXY_TARGET: http://api:3000
     ports:
       - "5173:5173"
     volumes:
       - ./packages/web:/app/packages/web
-      - /app/node_modules
     command: pnpm --filter @shipyard/web dev --host
