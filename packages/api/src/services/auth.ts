@@ -14,6 +14,7 @@ import {
 } from "@shipyard/shared/validators";
 import { eq } from "drizzle-orm";
 import { getEnv } from "../config/env.js";
+import { logger } from "../config/logger.js";
 import { db } from "../plugins/db.js";
 
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -273,8 +274,10 @@ export async function getUserWithOrg(userId: string) {
 	if (user.githubAccessToken) {
 		try {
 			accessToken = decrypt(user.githubAccessToken, env.ENCRYPTION_KEY);
-		} catch {
-			console.error("Failed to decrypt GitHub access token");
+		} catch (err) {
+			if (err instanceof Error) {
+				logger.error({ err }, "Failed to decrypt GitHub access token");
+			}
 		}
 	}
 

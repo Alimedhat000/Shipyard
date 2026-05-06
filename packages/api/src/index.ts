@@ -1,12 +1,10 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import pino from "pino";
 import { getEnv } from "./config/env.js";
+import { logger } from "./config/logger.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createHealthRouter } from "./routes/health.js";
-
-const logger = pino();
 
 const app = express();
 const env = getEnv();
@@ -24,12 +22,18 @@ app.use(cookieParser());
 app.use((req, res, next) => {
 	const start = Date.now();
 	res.on("finish", () => {
-		logger.info({
-			method: req.method,
-			path: req.path,
-			status: res.statusCode,
-			duration: Date.now() - start,
-		});
+		const duration = Date.now() - start;
+		const level =
+			res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+		logger[level](
+			{
+				method: req.method,
+				path: req.path,
+				status: res.statusCode,
+				duration: `${duration}ms`,
+			},
+			`${req.method} ${req.path} ${res.statusCode}`,
+		);
 	});
 	next();
 });
@@ -45,12 +49,12 @@ app.use((_req, res) => {
 
 const port = parseInt(env.PORT, 10);
 const server = app.listen(port, () => {
-	logger.info({ port }, `Shipyard API started on port ${port}`);
+	logger.info(`Server listening on port ${port}`);
 });
 
 // Graceful shutdown
 function shutdown(signal: string) {
-	logger.info({ signal }, "Shutting down...");
+	logger.warn({ signal }, `Shutting down...`);
 	server.close(() => {
 		logger.info("Server closed");
 		process.exit(0);
