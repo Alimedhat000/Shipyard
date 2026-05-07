@@ -30,17 +30,32 @@ A URL-safe identifier derived from the App name, used for routing (`myapp.bigbos
 
 ### Framework Detection
 
-Auto-detection of the frontend framework by scanning `package.json` dependencies: `vite` → Vite, `react-scripts` → CRA, `next` → Next.js, `vue` → Vue. User can override any detected value.
+Handled by the **BuildPack** abstraction (`docs/adr/0012-build-pack-abstraction.md`). User selects a build pack at app creation time:
+
+- **`static`** — nginx:alpine. No detection. User provides output directory. Assets copied into image.
+- **`dockerfile`** — User provides Dockerfile in repo. No detection. Shipyard builds it.
+- **`nixpacks`** — Nixpacks auto-detects framework from repo contents (Node, Python, Go, Rust, etc.) and generates a Dockerfile. User can override build/start commands.
 
 ### Build Step
 
-An individual phase in the deployment pipeline:
+An individual phase in the deployment pipeline. The exact steps depend on the **build pack**:
 
+**Static build pack:**
 1. **Clone** — `git clone --depth 1`
-2. **Install** — `npm install`
-3. **Build** — `npm run build`
-4. **Verify** — check output directory exists and is not empty
-5. **Upload** — sync output to object storage
+2. **Build** — optional user-defined build command (e.g., `npm run build`)
+3. **Verify** — check output directory exists and not empty
+4. **Package** — copy assets into nginx:alpine image
+
+**Dockerfile build pack:**
+1. **Clone** — `git clone --depth 1`
+2. **Docker build** — `docker build -f Dockerfile`
+3. **Run** — start container, route traffic
+
+**Nixpacks build pack:**
+1. **Clone** — `git clone --depth 1`
+2. **Detect** — `nixpacks detect .` to detect framework
+3. **Docker build** — Nixpacks generates Dockerfile, then `docker build`
+4. **Run** — start container, route traffic
 
 ### Output Directory Verification Rules
 
@@ -71,7 +86,13 @@ When multiple git pushes arrive for the same App, the pending Build Job is cance
 
 ### Container Lifecycle
 
-Each build runs in an isolated `node:22-alpine` Docker container with 2GB memory limit and a 15-minute timeout. On success or failure, the container is immediately removed (`docker rm -f`). Logs are extracted before removal.
+Depends on the build pack:
+
+- **Static:** Build runs in a temporary build container (user-defined image or default). Output is packaged into an `nginx:alpine` runtime image. Long-lived.
+- **Dockerfile:** User's Dockerfile is built. Resulting image runs as a long-lived container.
+- **Nixpacks:** Nixpacks generates a Dockerfile. Image is built and runs as a long-lived container.
+
+All build containers have a 15-minute timeout. Runtime containers (static, dockerfile, nixpacks) are long-lived with health checks and automatic restarts.
 
 ## Storage & Routing
 

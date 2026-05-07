@@ -6,7 +6,7 @@ Self-hosting static sites is painful. Existing tools either lock you into a SaaS
 
 ## Solution
 
-Shipyard is a self-hosted deployment control plane for static sites. It clones GitHub repos, runs builds in isolated Docker containers, uploads output to Garage, and routes traffic via Caddy. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator scoped strictly to static sites.
+Shipyard is a self-hosted deployment control plane. It clones GitHub repos, builds projects using the selected **build pack** (static, Dockerfile, or Nixpacks), and runs the resulting containers with automatic routing via Caddy. It is not a SaaS product — there are no quotas, no billing, no per-user limits. The only constraints are infrastructure-level (CPU, memory, disk). It is a Coolify-inspired deployment orchestrator that grows from simple static sites to full application hosting.
 
 ## User Stories
 
@@ -21,13 +21,15 @@ Shipyard is a self-hosted deployment control plane for static sites. It clones G
 
 ### App Management
 
-1. As a developer, I want to create an app by connecting a GitHub repo, so that I can deploy it immediately.
-2. As a developer, I want the platform to auto-detect my framework (Vite, CRA, Next.js, Vue), so that build command and output directory are pre-filled.
-3. As a developer, I want to override the detected framework, build command, and output directory, so that I can handle non-standard setups.
-4. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build time.
-5. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
-6. As a developer, I want to see my apps on a dashboard with last deployment status, so that I can quickly see what is deployed.
-7. As a developer, I want to delete an app, so that I can clean up unused projects. Deleting an app removes all deployments from Garage storage and database records.
+1. As a developer, I want to choose a **build pack** (static, Dockerfile, or Nixpacks) when creating an app, so that Shipyard handles my project the right way.
+2. As a developer using the **static build pack**, I want to specify my output directory and optionally a build command, so that my pre-built assets are served via nginx.
+3. As a developer using the **Dockerfile build pack**, I want Shipyard to build my Dockerfile and run the resulting container, so that I can deploy any project with a custom Docker setup.
+4. As a developer using the **Nixpacks build pack**, I want the platform to auto-detect my framework and generate the Dockerfile, so that I don't have to write one manually.
+5. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build and runtime.
+6. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
+7. As a developer, I want to see my apps on a dashboard with deployment status and container health, so that I can quickly see what is running.
+8. As a developer, I want to configure the container port Shipyard routes traffic to, so that my app is accessible at the right endpoint.
+9. As a developer, I want to delete an app, so that I can clean up unused projects. Deleting an app stops the container and removes all database records.
 
 ### Deployments
 
@@ -174,10 +176,16 @@ apps
   description
   github_repo
   branch
+  build_pack (static | dockerfile | nixpacks)
   framework
   build_command
   output_directory
-  auto_deploy (boolean)
+  run_command
+  port (INTEGER, default 80)
+  dockerfile_path (VARCHAR, default './Dockerfile')
+  is_spa (BOOLEAN, default true)
+  custom_nginx_config (TEXT)
+  auto_deploy (BOOLEAN)
   active_deployment_id (FK → deployments, nullable)
   created_at
   updated_at
@@ -239,10 +247,12 @@ GET  /auth/github/callback     → Session cookie, redirect to dashboard
 GET  /auth/me                 → Current user
 
 GET  /apps                    → List org's apps
-POST /apps                    → Create app (connect repo)
-GET  /apps/:id               → App details
-PUT  /apps/:id               → Update settings
-DELETE /apps/:id             → Delete app
+POST /apps                    → Create app (connect repo + select build_pack)
+GET  /apps/:id               → App details including container status
+PUT  /apps/:id               → Update settings (build_pack, port, commands, etc.)
+DELETE /apps/:id             → Delete app (stop container, remove records)
+
+GET  /apps/:id/logs          → Stream container logs (SSE)
 
 GET  /apps/:id/deployments     → List app's deployments
 POST /apps/:id/deployments    → Trigger deploy
@@ -262,46 +272,66 @@ GET  /health                 → Health check
 
 ### Build Pipeline Flow
 
+The flow depends on the app's `build_pack`:
+
+**Static build pack:**
 ```
-1. Queue deployment job (deployment_id)
-2. Worker picks up job
-3. Update status: pending → building
-4. Clone repo (git clone --depth 1)
-   - Network timeout → retry 3x (exp backoff: 2s, 4s, 8s)
-   - Auth error (128) → fail immediately
-5. Inject env vars into container
-6. npm install
-   - Network timeout → retry 3x
-   - 404 Not Found → fail immediately
-   - ENOSPC → system alert, fail all
-7. npm run build
-   - Any non-zero exit → fail immediately
-8. Verify output directory exists and is not empty
-9. Upload to Garage (full upload in MVP)
-10. Keep newest 5 deployments, delete older ones
-11. Update active_deployment_id in apps
-12. Send config to Caddy API (auto-reloads)
-13. Update status: success
-14. docker rm -f (container)
+1. Clone repo (git clone --depth 1)
+2. (Optional) Run user-defined build command
+3. Verify output directory exists and not empty
+4. Build nginx:alpine image with assets copied to /usr/share/nginx/html/
+5. Deploy container (port 80)
+6. Send config to Caddy API (auto-reloads)
+7. Update status: success
+```
+
+**Dockerfile build pack:**
+```
+1. Clone repo (git clone --depth 1)
+2. docker build -f <dockerfile_path> -t shipyard-<id> .
+   - Build error → fail immediately
+3. Stop previous container (if any)
+4. Start new container from built image
+5. Health check → confirm container is responding
+6. Send config to Caddy API (route to new container)
+7. Update status: success
+```
+
+**Nixpacks build pack:**
+```
+1. Clone repo (git clone --depth 1)
+2. nixpacks build . --out ./Dockerfile
+   - Detection fail → fail with "could not detect framework"
+3. docker build -f ./Dockerfile -t shipyard-<id> .
+4. Stop previous container (if any)
+5. Start new container from built image
+6. Health check → confirm container is responding
+7. Send config to Caddy API (route to new container)
+8. Update status: success
 ```
 
 ### Caddy Configuration
 
 - Server blocks for `*.bigboss.dev` via Caddy's built-in auto-HTTPS (Let's Encrypt)
-- `reverse_proxy` to Garage endpoint
-- SPA fallback: Caddy `handle_errors` with rewrite to `/index.html`
+- Routes traffic based on build pack:
+  - **Static:** `reverse_proxy` to the nginx container
+  - **Dockerfile/Nixpacks:** `reverse_proxy` to the user's container on configured port
+- SPA fallback for static sites: Caddy `handle_errors` with rewrite to `/index.html`
 - JSON API config sent to `http://caddy:2019/config/`
-- S3 path style: `http://garage:3900/bucket/users/.../`
+- Each app gets a unique route — config updates are per-app (not full reload)
 
-### Docker Container
+### Docker Container (Runtime)
 
-- Image: `node:22-alpine`
-- Pre-installed: node, npm, git, build-essential, python3
-- Network: host or bridge (configurable)
-- Memory: 2GB limit
-- Timeout: 15 min (kill + fail if exceeded)
-- Cleanup: `docker rm -f` on success or failure
-- Startup: git clone → npm install → npm run build → extract dist
+Each deployed app runs as a long-lived Docker container:
+
+- Image: depends on build pack
+  - **Static:** `nginx:alpine` with user assets
+  - **Dockerfile:** user-provided Dockerfile output
+  - **Nixpacks:** Nixpacks-generated Dockerfile output
+- Network: bridge (configurable)
+- Restart policy: `unless-stopped`
+- Health check: configured per app
+- Logs: captured to database for streaming via API
 
 ### Env Var Encryption
 
@@ -338,26 +368,33 @@ The following are explicitly excluded from MVP and planned for v2 or later:
 - OpenTelemetry or distributed tracing
 - Database-level audit logging
 
-## Further Notes
+### Build Pack Implementation Order
 
-## Further Notes
+| Build Pack | When | Why |
+|---|---|---|
+| **Static** | P0 | Simplest. nginx:alpine, copy assets. Teaches the deployment pipeline. |
+| **Dockerfile** | P0 | Full control. Build any Dockerfile. Teaches container lifecycle. |
+| **Nixpacks** | P1 | Auto-detection. Requires nixpacks binary. Teaches framework abstraction. |
 
 ### MVP Priority Breakdown
 
-**P0 (Must Have - Week 1-4):**
+**P0 (Must Have):**
 - GitHub OAuth, app creation, manual deploy
-- Build pipeline with step-aware retry
-- Garage storage, Caddy routing, SPA fallback
-- Environment variables (encrypted)
-- Basic UI (app list, deploy button, logs view)
+- **Static build pack** — nginx:alpine, SPA fallback, custom nginx config
+- **Dockerfile build pack** — user-provided Dockerfile, port config, health checks
+- Container lifecycle (start, stop, restart, logs)
+- Caddy routing to containers (not just Garage)
+- Environment variables (encrypted, injected at build + runtime)
+- Basic UI (app list, create with build pack selector, deploy button, logs view)
 
-**P1 (Should Have - Week 5-6):**
+**P1 (Should Have):**
+- **Nixpacks build pack** — auto-detect framework, generate Dockerfile
 - Auto-deploy webhooks
 - Rollback
 - Build cancellation
 - Deployment history
 
-**P2 (Nice to Have - Post-MVP):**
+**P2 (Nice to Have):**
 - Rapid push debounce
 - Streaming build logs (SSE)
 - Worker heartbeat monitoring
@@ -373,7 +410,7 @@ The following are explicitly excluded from MVP and planned for v2 or later:
 
 After MVP, the natural expansion is:
 
-- **v2:** Custom domains + Let's Encrypt, webhook notifications, content hashing
+- **v2:** Custom domains + Let's Encrypt, webhook notifications, Nixpacks polish
 - **v3:** Teams + permissions, branch preview URLs, usage analytics
 
 ### Self-Hosted Model
