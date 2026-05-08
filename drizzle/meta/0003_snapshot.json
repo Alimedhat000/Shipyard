@@ -1,5 +1,5 @@
 {
-	"id": "8b8d02b7-368a-4fad-8e74-7874857610d1",
+	"id": "17cfa09f-6dc0-4535-b97b-d98401e2c655",
 	"prevId": "014c2dc1-e8fe-401c-94c4-8144c2bd61f3",
 	"version": "7",
 	"dialect": "postgresql",
@@ -144,6 +144,27 @@
 						}
 					],
 					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"idx_apps_org_name_unique": {
+					"name": "idx_apps_org_name_unique",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "name",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
