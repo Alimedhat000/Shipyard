@@ -28,34 +28,29 @@ A URL-safe identifier derived from the App name, used for routing (`myapp.bigbos
 
 ## Build Pipeline
 
-### Framework Detection
+### Build Pack
 
-Handled by the **BuildPack** abstraction (`docs/adr/0012-build-pack-abstraction.md`). User selects a build pack at app creation time:
+Handled by the **BuildPack** abstraction (`docs/adr/0012-build-pack-abstraction.md`). User selects a build pack at app creation time (PostgreSQL enum):
 
-- **`static`** — nginx:alpine. No detection. User provides output directory. Assets copied into image.
-- **`dockerfile`** — User provides Dockerfile in repo. No detection. Shipyard builds it.
-- **`nixpacks`** — Nixpacks auto-detects framework from repo contents (Node, Python, Go, Rust, etc.) and generates a Dockerfile. User can override build/start commands.
+| Pack | Description |
+|------|-------------|
+| `nixpacks` | Nixpacks auto-detects framework and generates Dockerfile |
+| `static` | nginx:alpine serves pre-built static assets |
+| `dockerfile` | User-provided Dockerfile, Shipyard builds and runs |
+| `dockercompose` | User-provided docker-compose.yml, multi-service stack |
+| `dockerimage` | Pull a pre-built image from a registry and run it |
 
 ### Build Step
 
-An individual phase in the deployment pipeline. The exact steps depend on the **build pack**:
+The deployment pipeline varies by **build pack**:
 
-**Static build pack:**
-1. **Clone** — `git clone --depth 1`
-2. **Build** — optional user-defined build command (e.g., `npm run build`)
-3. **Verify** — check output directory exists and not empty
-4. **Package** — copy assets into nginx:alpine image
-
-**Dockerfile build pack:**
-1. **Clone** — `git clone --depth 1`
-2. **Docker build** — `docker build -f Dockerfile`
-3. **Run** — start container, route traffic
-
-**Nixpacks build pack:**
-1. **Clone** — `git clone --depth 1`
-2. **Detect** — `nixpacks detect .` to detect framework
-3. **Docker build** — Nixpacks generates Dockerfile, then `docker build`
-4. **Run** — start container, route traffic
+| Pack | Steps |
+|------|-------|
+| **nixpacks** | Clone → `nixpacks build .` (generates Dockerfile) → `docker build` → run |
+| **static** | Clone → (optional build command) → copy assets to nginx:alpine → run |
+| **dockerfile** | Clone → `docker build -f Dockerfile` → run |
+| **dockercompose** | Clone → `docker compose up -d` |
+| **dockerimage** | `docker pull <image>` → run (no clone) |
 
 ### Output Directory Verification Rules
 
@@ -86,13 +81,15 @@ When multiple git pushes arrive for the same App, the pending Build Job is cance
 
 ### Container Lifecycle
 
-Depends on the build pack:
+All five build packs produce long-lived containers with health checks and automatic restarts:
 
-- **Static:** Build runs in a temporary build container (user-defined image or default). Output is packaged into an `nginx:alpine` runtime image. Long-lived.
-- **Dockerfile:** User's Dockerfile is built. Resulting image runs as a long-lived container.
-- **Nixpacks:** Nixpacks generates a Dockerfile. Image is built and runs as a long-lived container.
-
-All build containers have a 15-minute timeout. Runtime containers (static, dockerfile, nixpacks) are long-lived with health checks and automatic restarts.
+| Pack | Build Phase | Runtime |
+|------|-------------|---------|
+| **nixpacks** | Temporary build container (15m timeout) | Long-lived from generated Dockerfile |
+| **static** | Temporary build container | `nginx:alpine` serving assets |
+| **dockerfile** | `docker build` on host | User's image |
+| **dockercompose** | Multi-container stack | Compose-managed lifecycle |
+| **dockerimage** | No build (just pull) | Pre-built image from registry |
 
 ## Storage & Routing
 

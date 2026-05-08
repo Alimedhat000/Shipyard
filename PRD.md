@@ -21,15 +21,17 @@ Shipyard is a self-hosted deployment control plane. It clones GitHub repos, buil
 
 ### App Management
 
-1. As a developer, I want to choose a **build pack** (static, Dockerfile, or Nixpacks) when creating an app, so that Shipyard handles my project the right way.
-2. As a developer using the **static build pack**, I want to specify my output directory and optionally a build command, so that my pre-built assets are served via nginx.
-3. As a developer using the **Dockerfile build pack**, I want Shipyard to build my Dockerfile and run the resulting container, so that I can deploy any project with a custom Docker setup.
-4. As a developer using the **Nixpacks build pack**, I want the platform to auto-detect my framework and generate the Dockerfile, so that I don't have to write one manually.
-5. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build and runtime.
-6. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
-7. As a developer, I want to see my apps on a dashboard with deployment status and container health, so that I can quickly see what is running.
-8. As a developer, I want to configure the container port Shipyard routes traffic to, so that my app is accessible at the right endpoint.
-9. As a developer, I want to delete an app, so that I can clean up unused projects. Deleting an app stops the container and removes all database records.
+1. As a developer, I want to choose a **build pack** (nixpacks, static, dockerfile, dockercompose, or dockerimage) when creating an app, so that Shipyard handles my project the right way.
+2. As a developer using the **nixpacks build pack**, I want the platform to auto-detect my framework and generate the Dockerfile, so that I don't have to write one manually.
+3. As a developer using the **static build pack**, I want to specify my output directory and optionally a build command, so that my pre-built assets are served via nginx.
+4. As a developer using the **Dockerfile build pack**, I want Shipyard to build my Dockerfile and run the resulting container, so that I can deploy any project with a custom Docker setup.
+5. As a developer using the **Docker Compose build pack**, I want Shipyard to deploy my multi-service stack from a docker-compose.yml file, so that I can run apps with bundled databases or microservices.
+6. As a developer using the **Docker Image build pack**, I want to deploy a pre-built image from a registry without connecting a git repo, so that I can run existing images directly.
+7. As a developer, I want to configure environment variables per app, so that secrets and config values are available at build and runtime.
+8. As a developer, I want environment variables encrypted at rest (AES-256, key in env var), so that secrets are not stored in plaintext.
+9. As a developer, I want to see my apps on a dashboard with deployment status and container health, so that I can quickly see what is running.
+10. As a developer, I want to configure the container port Shipyard routes traffic to, so that my app is accessible at the right endpoint.
+11. As a developer, I want to delete an app, so that I can clean up unused projects. Deleting an app stops the container and removes all database records.
 
 ### Deployments
 
@@ -176,7 +178,7 @@ apps
   description
   github_repo
   branch
-  build_pack (static | dockerfile | nixpacks)
+  build_pack (PostgreSQL ENUM: nixpacks | static | dockerfile | dockercompose | dockerimage)
   framework
   build_command
   output_directory
@@ -185,6 +187,7 @@ apps
   dockerfile_path (VARCHAR, default './Dockerfile')
   is_spa (BOOLEAN, default true)
   custom_nginx_config (TEXT)
+  image (VARCHAR) -- for dockerimage pack: 'nginx:alpine', 'ghcr.io/user/app:latest'
   auto_deploy (BOOLEAN)
   active_deployment_id (FK → deployments, nullable)
   created_at
@@ -374,7 +377,9 @@ The following are explicitly excluded from MVP and planned for v2 or later:
 |---|---|---|
 | **Static** | P0 | Simplest. nginx:alpine, copy assets. Teaches the deployment pipeline. |
 | **Dockerfile** | P0 | Full control. Build any Dockerfile. Teaches container lifecycle. |
+| **Docker Image** | P0 | No build pipeline needed — pull and run. Quickest path to "something running". |
 | **Nixpacks** | P1 | Auto-detection. Requires nixpacks binary. Teaches framework abstraction. |
+| **Docker Compose** | P1+ | Multi-container orchestration. Significant complexity. Post-MVP. |
 
 ### MVP Priority Breakdown
 
