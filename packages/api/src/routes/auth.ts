@@ -54,7 +54,7 @@ export function createAuthRouter() {
 			res.redirect(`${frontendUrl}/dashboard`);
 		} catch (err) {
 			if (err instanceof Error) {
-				logger.error({ err: err.message }, "OAuth callback error");
+				logger.error({ err }, "OAuth callback error");
 			}
 			res.redirect("/login?error=auth_failed");
 		}

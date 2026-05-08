@@ -1,6 +1,6 @@
 {
-	"id": "17cfa09f-6dc0-4535-b97b-d98401e2c655",
-	"prevId": "014c2dc1-e8fe-401c-94c4-8144c2bd61f3",
+	"id": "f7084fbc-71d4-47b8-8b95-024e8e85acef",
+	"prevId": "17cfa09f-6dc0-4535-b97b-d98401e2c655",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -31,7 +31,8 @@
 					"name": "github_repo",
 					"type": "varchar(500)",
 					"primaryKey": false,
-					"notNull": true
+					"notNull": true,
+					"default": "''"
 				},
 				"build_command": {
 					"name": "build_command",

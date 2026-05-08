@@ -75,7 +75,7 @@ export const apps = pgTable(
 		organizationId: uuid("organization_id")
 			.references(() => organizations.id)
 			.notNull(),
-		githubRepo: varchar("github_repo", { length: 500 }).notNull(),
+		githubRepo: varchar("github_repo", { length: 500 }).notNull().default(""),
 		buildCommand: varchar("build_command", { length: 500 }),
 		outputDir: varchar("output_dir", { length: 255 }),
 		branch: varchar("branch", { length: 100 }).default("main"),

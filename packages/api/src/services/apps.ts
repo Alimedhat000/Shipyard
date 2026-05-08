@@ -9,13 +9,37 @@ import { db } from "../plugins/db.js";
 
 const UNIQUE_VIOLATION = "23505";
 
+const safeColumns = {
+	id: apps.id,
+	name: apps.name,
+	organizationId: apps.organizationId,
+	githubRepo: apps.githubRepo,
+	buildCommand: apps.buildCommand,
+	outputDir: apps.outputDir,
+	branch: apps.branch,
+	buildTimeout: apps.buildTimeout,
+	activeDeploymentId: apps.activeDeploymentId,
+	buildPack: apps.buildPack,
+	port: apps.port,
+	runCommand: apps.runCommand,
+	dockerfilePath: apps.dockerfilePath,
+	isSpa: apps.isSpa,
+	customNginxConfig: apps.customNginxConfig,
+	image: apps.image,
+	createdAt: apps.createdAt,
+	updatedAt: apps.updatedAt,
+};
+
 export async function listApps(orgId: string) {
-	return db.select().from(apps).where(eq(apps.organizationId, orgId));
+	return db
+		.select(safeColumns)
+		.from(apps)
+		.where(eq(apps.organizationId, orgId));
 }
 
 export async function getApp(orgId: string, appId: string) {
 	const rows = await db
-		.select()
+		.select(safeColumns)
 		.from(apps)
 		.where(and(eq(apps.id, appId), eq(apps.organizationId, orgId)));
 	return rows[0] ?? null;
@@ -25,7 +49,12 @@ export async function createApp(orgId: string, input: CreateAppInput) {
 	try {
 		const rows = await db
 			.insert(apps)
-			.values({ ...input, organizationId: orgId })
+			.values({
+				...input,
+				githubRepo: input.githubRepo ?? "",
+				branch: input.branch ?? "main",
+				organizationId: orgId,
+			})
 			.returning();
 		return rows[0];
 	} catch (err) {
