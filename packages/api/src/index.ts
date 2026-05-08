@@ -3,6 +3,8 @@ import cors from "cors";
 import express from "express";
 import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
+import { requireAuth } from "./middleware/auth.js";
+import { createAppsRouter } from "./routes/apps.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createHealthRouter } from "./routes/health.js";
 
@@ -41,6 +43,7 @@ app.use((req, res, next) => {
 // API routes
 app.use("/api/auth", createAuthRouter());
 app.use("/api/health", createHealthRouter());
+app.use("/api/apps", requireAuth, createAppsRouter());
 
 // 404 fallback
 app.use((_req, res) => {

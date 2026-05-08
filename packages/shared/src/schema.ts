@@ -6,6 +6,7 @@ import {
 	pgTable,
 	text,
 	timestamp,
+	uniqueIndex,
 	uuid,
 	varchar,
 } from "drizzle-orm/pg-core";
@@ -95,6 +96,10 @@ export const apps = pgTable(
 	},
 	(table) => ({
 		orgIdIdx: index("idx_apps_org_id").on(table.organizationId),
+		orgNameUnique: uniqueIndex("idx_apps_org_name_unique").on(
+			table.organizationId,
+			table.name,
+		),
 	}),
 );
 
