@@ -1,16 +1,20 @@
 import { createAppSchema, updateAppSchema } from "@shipyard/shared/validators";
 import { Router } from "express";
 import { logger } from "../config/logger.js";
+import { requireAuth } from "../middleware/auth.js";
 import * as appService from "../services/apps.js";
 
 export function createAppsRouter() {
 	const router = Router();
 
+	router.use(requireAuth);
+
 	router.get("/", async (req, res) => {
 		try {
 			const apps = await appService.listApps(req.orgId!);
 			res.json(apps);
-		} catch {
+		} catch (err) {
+			logger.error({ err }, "Failed to list apps");
 			res.status(500).json({ error: "internal_error" });
 		}
 	});
@@ -50,7 +54,8 @@ export function createAppsRouter() {
 				return;
 			}
 			res.json(app);
-		} catch {
+		} catch (err) {
+			logger.error({ err }, "Failed to get app");
 			res.status(500).json({ error: "internal_error" });
 		}
 	});
@@ -97,7 +102,8 @@ export function createAppsRouter() {
 				return;
 			}
 			res.status(204).send();
-		} catch {
+		} catch (err) {
+			logger.error({ err }, "Failed to delete app");
 			res.status(500).json({ error: "internal_error" });
 		}
 	});

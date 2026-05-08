@@ -1,0 +1,1 @@
+ALTER TABLE "apps" ALTER COLUMN "github_repo" SET DEFAULT '';

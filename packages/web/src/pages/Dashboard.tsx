@@ -34,42 +34,44 @@ function DashboardContent() {
 	return (
 		<div className="min-h-screen">
 			{/* Header */}
-			<header className="bg-ship-dock/80 backdrop-blur-sm border-b border-ship-deck/50 px-6 py-3 flex justify-between items-center sticky top-0 z-50">
-				<div className="flex items-center gap-4">
-					<h1 className="font-display text-xl font-bold text-white tracking-tight">
-						Shipyard
-					</h1>
-					{hasApps && (
-						<span className="font-mono text-[10px] text-ship-fog/70 tracking-widest uppercase border-l border-ship-deck/30 pl-4">
-							{apps.length} app{apps.length !== 1 ? "s" : ""} moored
+			<header className="bg-ship-dock/80 backdrop-blur-sm border-b border-ship-deck/50 sticky top-0 z-50">
+				<div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
+					<div className="flex items-center gap-4">
+						<h1 className="font-display text-xl font-bold text-white tracking-tight">
+							Shipyard
+						</h1>
+						{hasApps && (
+							<span className="font-mono text-[10px] text-ship-fog/70 tracking-widest uppercase border-l border-ship-deck/30 pl-4">
+								{apps.length} app{apps.length !== 1 ? "s" : ""} moored
+							</span>
+						)}
+					</div>
+					<div className="flex items-center gap-3">
+						{auth.user.avatarUrl && (
+							<img
+								src={auth.user.avatarUrl}
+								alt={auth.user.githubUsername}
+								className="w-7 h-7 rounded-full border border-ship-deck"
+							/>
+						)}
+						<span className="font-mono text-xs text-ship-fog">
+							{auth.user.githubUsername}
 						</span>
-					)}
-				</div>
-				<div className="flex items-center gap-3">
-					{auth.user.avatarUrl && (
-						<img
-							src={auth.user.avatarUrl}
-							alt={auth.user.githubUsername}
-							className="w-7 h-7 rounded-full border border-ship-deck"
-						/>
-					)}
-					<span className="font-mono text-xs text-ship-fog">
-						{auth.user.githubUsername}
-					</span>
-					<button
-						type="button"
-						className="text-ship-fog/70 hover:text-ship-fog transition-colors"
-						onClick={() => alert("Settings coming soon")}
-					>
-						<Settings size={15} />
-					</button>
-					<button
-						onClick={logout}
-						type="button"
-						className="font-mono text-[10px] tracking-widest text-ship-fog/70 hover:text-ship-fog border border-ship-deck/30 px-2.5 py-1 hover:border-ship-deck transition-colors"
-					>
-						SIGN_OUT
-					</button>
+						<button
+							type="button"
+							className="text-ship-fog/70 hover:text-ship-fog transition-colors"
+							onClick={() => alert("Settings coming soon")}
+						>
+							<Settings size={15} />
+						</button>
+						<button
+							onClick={logout}
+							type="button"
+							className="font-mono text-[10px] tracking-widest text-ship-fog/70 hover:text-ship-fog border border-ship-deck/30 px-2.5 py-1 hover:border-ship-deck transition-colors"
+						>
+							SIGN_OUT
+						</button>
+					</div>
 				</div>
 			</header>
 

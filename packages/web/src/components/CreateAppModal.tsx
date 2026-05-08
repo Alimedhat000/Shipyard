@@ -22,10 +22,12 @@ function validate(input: {
 		errs.name = "App name must be under 255 characters";
 	}
 
-	if (!input.githubRepo.trim()) {
-		errs.githubRepo = "GitHub repo is required";
-	} else if (!GITHUB_REPO_RE.test(input.githubRepo.trim())) {
-		errs.githubRepo = "Must be in owner/repo format";
+	if (input.buildPack !== "dockerimage") {
+		if (!input.githubRepo.trim()) {
+			errs.githubRepo = "GitHub repo is required";
+		} else if (!GITHUB_REPO_RE.test(input.githubRepo.trim())) {
+			errs.githubRepo = "Must be in owner/repo format";
+		}
 	}
 
 	if (input.buildPack === "dockerimage" && !input.image.trim()) {
@@ -36,7 +38,7 @@ function validate(input: {
 		(input.buildPack === "static" || input.buildPack === "nixpacks") &&
 		!input.outputDir.trim()
 	) {
-		errs.outputDir = "Output directory is required for this build pack";
+		errs.outputDir = "Output directory is required";
 	}
 
 	if (input.buildPack === "dockerfile" && !input.dockerfilePath.trim()) {
@@ -128,11 +130,14 @@ export function CreateAppModal({ open, onClose }: Props) {
 
 		const payload: Record<string, unknown> = {
 			name,
-			githubRepo,
-			branch,
 			buildPack,
 			port,
 		};
+
+		if (buildPack !== "dockerimage") {
+			payload.githubRepo = githubRepo;
+			payload.branch = branch;
+		}
 
 		if (buildCommand) payload.buildCommand = buildCommand;
 
@@ -187,7 +192,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 						className="relative w-full max-w-xl border border-ship-deck bg-ship-dock shadow-2xl my-auto"
 					>
 						{/* Header */}
-						<div className="flex items-center justify-between px-5 py-3 border-b border-ship-deck/50">
+						<div className="flex items-center justify-between p-5 border-b border-ship-deck/50">
 							<div className="flex items-center gap-3">
 								<span className="font-mono text-[10px] tracking-widest text-ship-buoy uppercase">
 									New Work Order
@@ -226,35 +231,38 @@ export function CreateAppModal({ open, onClose }: Props) {
 									/>
 									<FieldError msg={fieldErrors.name} />
 								</div>
-								<div className="space-y-1.5">
-									<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-										GitHub Repo *
-									</label>
-									<input
-										value={githubRepo}
-										onChange={(e) => {
-											setGithubRepo(e.target.value);
-											if (fieldErrors.githubRepo)
-												setFieldErrors((p) => ({ ...p, githubRepo: "" }));
-										}}
-										placeholder="user/repo"
-										className={inputCls(!!fieldErrors.githubRepo)}
-									/>
-									<FieldError msg={fieldErrors.githubRepo} />
-								</div>
+								{buildPack !== "dockerimage" && (
+									<div className="space-y-1.5">
+										<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+											GitHub Repo *
+										</label>
+										<input
+											value={githubRepo}
+											onChange={(e) => {
+												setGithubRepo(e.target.value);
+												if (fieldErrors.githubRepo)
+													setFieldErrors((p) => ({ ...p, githubRepo: "" }));
+											}}
+											placeholder="user/repo"
+											className={inputCls(!!fieldErrors.githubRepo)}
+										/>
+										<FieldError msg={fieldErrors.githubRepo} />
+									</div>
+								)}
 							</div>
 
-							{/* Branch */}
-							<div className="space-y-1.5">
-								<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-									Branch
-								</label>
-								<input
-									value={branch}
-									onChange={(e) => setBranch(e.target.value)}
-									className="w-full max-w-xs bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
-								/>
-							</div>
+							{buildPack !== "dockerimage" && (
+								<div className="space-y-1.5">
+									<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+										Branch
+									</label>
+									<input
+										value={branch}
+										onChange={(e) => setBranch(e.target.value)}
+										className="w-full max-w-xs bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
+									/>
+								</div>
+							)}
 
 							<BuildPackSelector value={buildPack} onChange={setBuildPack} />
 
@@ -276,7 +284,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 										>
 											<div className="space-y-1.5">
 												<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-													Output Dir {buildPack === "static" ? "*" : ""}
+													Output Dir *
 												</label>
 												<input
 													value={outputDir}
