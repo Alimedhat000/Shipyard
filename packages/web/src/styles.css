@@ -14,7 +14,7 @@
 	--color-ship-deep: #0a0e1a;
 	--color-ship-dock: #1a2332;
 	--color-ship-deck: #2d3748;
-	--color-ship-fog: #4a5568;
+	--color-ship-fog: #8ba1b5;
 	--color-ship-buoy: #00d4aa;
 	--color-ship-warning: #f6ad55;
 
@@ -27,7 +27,7 @@
 /* Base styles */
 body {
 	background-color: var(--color-ship-deep);
-	color: var(--color-ship-fog);
+	color: #c8d6e5;
 	font-family: var(--font-body);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
