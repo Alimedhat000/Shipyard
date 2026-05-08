@@ -2,12 +2,21 @@ import {
 	boolean,
 	index,
 	integer,
+	pgEnum,
 	pgTable,
 	text,
 	timestamp,
 	uuid,
 	varchar,
 } from "drizzle-orm/pg-core";
+
+export const buildPackEnum = pgEnum("build_pack", [
+	"nixpacks",
+	"static",
+	"dockerfile",
+	"dockercompose",
+	"dockerimage",
+]);
 
 export const organizations = pgTable(
 	"organizations",
@@ -68,11 +77,19 @@ export const apps = pgTable(
 		githubRepo: varchar("github_repo", { length: 500 }).notNull(),
 		buildCommand: varchar("build_command", { length: 500 }),
 		outputDir: varchar("output_dir", { length: 255 }),
-		framework: varchar("framework", { length: 100 }),
 		branch: varchar("branch", { length: 100 }).default("main"),
 		buildTimeout: integer("build_timeout").default(900),
 		activeDeploymentId: uuid("active_deployment_id"),
 		webhookSecret: varchar("webhook_secret", { length: 255 }),
+		buildPack: buildPackEnum("build_pack").notNull().default("static"),
+		port: integer("port").default(80),
+		runCommand: varchar("run_command", { length: 500 }),
+		dockerfilePath: varchar("dockerfile_path", { length: 255 }).default(
+			"./Dockerfile",
+		),
+		isSpa: boolean("is_spa").default(true),
+		customNginxConfig: text("custom_nginx_config"),
+		image: varchar("image", { length: 500 }),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at"),
 	},
@@ -92,6 +109,7 @@ export const deployments = pgTable(
 		commitMessage: text("commit_message"),
 		branch: varchar("branch", { length: 100 }),
 		status: varchar("status", { length: 50 }).notNull().default("pending"),
+		detected_framework: varchar("detected_framework", { length: 100 }),
 		outputDir: varchar("output_dir", { length: 255 }),
 		startedAt: timestamp("started_at"),
 		finishedAt: timestamp("finished_at"),

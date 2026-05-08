@@ -1,7 +1,7 @@
 import pino from "pino";
 import { getEnv } from "../config/env.js";
 
-const env = getEnv();
+const _env = getEnv();
 
 const isDev = false;
 
