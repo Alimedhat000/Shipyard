@@ -3,7 +3,6 @@ import cors from "cors";
 import express from "express";
 import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
-import { requireAuth } from "./middleware/auth.js";
 import { createAppsRouter } from "./routes/apps.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createHealthRouter } from "./routes/health.js";
@@ -27,14 +26,15 @@ app.use((req, res, next) => {
 		const duration = Date.now() - start;
 		const level =
 			res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+		const fullPath = req.originalUrl;
 		logger[level](
 			{
 				method: req.method,
-				path: req.path,
+				path: fullPath,
 				status: res.statusCode,
 				duration: `${duration}ms`,
 			},
-			`${req.method} ${req.path} ${res.statusCode}`,
+			`${req.method} ${fullPath} ${res.statusCode}`,
 		);
 	});
 	next();
@@ -43,7 +43,7 @@ app.use((req, res, next) => {
 // API routes
 app.use("/api/auth", createAuthRouter());
 app.use("/api/health", createHealthRouter());
-app.use("/api/apps", requireAuth, createAppsRouter());
+app.use("/api/apps", createAppsRouter());
 
 // 404 fallback
 app.use((_req, res) => {
