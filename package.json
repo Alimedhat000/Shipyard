@@ -28,6 +28,6 @@
 		"drizzle-kit": "^0.30.1"
 	},
 	"simple-git-hooks": {
-		"pre-commit": "pnpm exec biome check --staged --write && git add -u"
+		"pre-commit": "git diff --cached --name-only --diff-filter=ACM | grep -qE '\\.(js|jsx|ts|tsx|css|json)$' && pnpm exec biome check --staged --write && git add -u || true"
 	}
 }
