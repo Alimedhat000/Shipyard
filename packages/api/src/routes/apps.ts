@@ -6,17 +6,9 @@ import * as appService from "../services/apps.js";
 export function createAppsRouter() {
 	const router = Router();
 
-	router.use((req, res, next) => {
-		if (!req.orgId) {
-			res.status(401).json({ error: "unauthorized" });
-			return;
-		}
-		next();
-	});
-
 	router.get("/", async (req, res) => {
 		try {
-			const apps = await appService.listApps(req.orgId);
+			const apps = await appService.listApps(req.orgId!);
 			res.json(apps);
 		} catch {
 			res.status(500).json({ error: "internal_error" });
@@ -34,7 +26,7 @@ export function createAppsRouter() {
 				return;
 			}
 
-			const app = await appService.createApp(req.orgId, parsed.data);
+			const app = await appService.createApp(req.orgId!, parsed.data);
 
 			res.status(201).json(app);
 		} catch (err) {
@@ -52,7 +44,7 @@ export function createAppsRouter() {
 
 	router.get("/:id", async (req, res) => {
 		try {
-			const app = await appService.getApp(req.orgId, req.params.id);
+			const app = await appService.getApp(req.orgId!, req.params.id);
 			if (!app) {
 				res.status(404).json({ error: "not_found" });
 				return;
@@ -75,7 +67,7 @@ export function createAppsRouter() {
 			}
 
 			const app = await appService.updateApp(
-				req.orgId,
+				req.orgId!,
 				req.params.id,
 				parsed.data,
 			);
@@ -99,7 +91,7 @@ export function createAppsRouter() {
 
 	router.delete("/:id", async (req, res) => {
 		try {
-			const deleted = await appService.deleteApp(req.orgId, req.params.id);
+			const deleted = await appService.deleteApp(req.orgId!, req.params.id);
 			if (!deleted) {
 				res.status(404).json({ error: "not_found" });
 				return;

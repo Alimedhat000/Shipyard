@@ -22,6 +22,9 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"style": {
+				"noNonNullAssertion": "off"
+			},
 			"a11y": {
 				"noLabelWithoutControl": "off",
 				"noSvgWithoutTitle": "off"
