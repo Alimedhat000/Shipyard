@@ -3,7 +3,7 @@ import { getEnv } from "../config/env.js";
 
 const _env = getEnv();
 
-const isDev = false;
+const isDev = _env.NODE_ENV === "development";
 
 const options: pino.LoggerOptions = {
 	level: isDev ? "debug" : "info",

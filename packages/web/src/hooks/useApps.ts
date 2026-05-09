@@ -38,8 +38,14 @@ export function useDeleteApp() {
 				method: "DELETE",
 				credentials: "include",
 			});
-			if (!res.ok) throw new Error("Failed to delete app");
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.message ?? body.error ?? "Failed to delete app");
+			}
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["apps"] }),
+		onError: (error) => {
+			console.error("Delete failed:", error);
+		},
 	});
 }

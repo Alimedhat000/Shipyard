@@ -418,7 +418,8 @@ export function CreateAppModal({ open, onClose }: Props) {
 										type="number"
 										value={port}
 										onChange={(e) => {
-											setPort(Number(e.target.value));
+											const val = e.target.value;
+											setPort(val === "" ? 0 : Number(val));
 											if (fieldErrors.port)
 												setFieldErrors((p) => ({ ...p, port: "" }));
 										}}

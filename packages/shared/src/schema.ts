@@ -114,7 +114,7 @@ export const deployments = pgTable(
 		commitMessage: text("commit_message"),
 		branch: varchar("branch", { length: 100 }),
 		status: varchar("status", { length: 50 }).notNull().default("pending"),
-		detected_framework: varchar("detected_framework", { length: 100 }),
+		detectedFramework: varchar("detected_framework", { length: 100 }),
 		outputDir: varchar("output_dir", { length: 255 }),
 		startedAt: timestamp("started_at"),
 		finishedAt: timestamp("finished_at"),

@@ -18,49 +18,64 @@ const appFieldDefs = {
 
 const baseAppSchema = z.object(appFieldDefs);
 
-export const createAppSchema = z
-	.object({
-		name: appFieldDefs.name,
-		githubRepo: appFieldDefs.githubRepo.optional(),
-		branch: appFieldDefs.branch.default("main"),
-		buildPack: appFieldDefs.buildPack,
-		buildCommand: appFieldDefs.buildCommand,
-		outputDir: appFieldDefs.outputDir,
-		port: appFieldDefs.port.default(80),
-		runCommand: appFieldDefs.runCommand,
-		dockerfilePath: appFieldDefs.dockerfilePath.default("./Dockerfile"),
-		isSpa: appFieldDefs.isSpa.default(true),
-		customNginxConfig: appFieldDefs.customNginxConfig,
-		image: appFieldDefs.image,
-	})
-	.superRefine((data, ctx) => {
-		if (data.buildPack !== "dockerimage" && !data.githubRepo) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["githubRepo"],
-				message: "GitHub repo is required for this build pack",
-			});
-		}
-		if (
-			(data.buildPack === "static" || data.buildPack === "nixpacks") &&
-			!data.outputDir
-		) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["outputDir"],
-				message: "Output directory is required for this build pack",
-			});
-		}
-		if (data.buildPack === "dockerimage" && !data.image) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["image"],
-				message: "Image is required for Docker Image build pack",
-			});
-		}
-	});
+export const appRefinement = <
+	T extends {
+		buildPack?: string;
+		githubRepo?: string;
+		outputDir?: string;
+		image?: string;
+	},
+>(
+	data: T,
+	ctx: z.RefinementCtx,
+) => {
+	if (data.buildPack && data.buildPack !== "dockerimage" && !data.githubRepo) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["githubRepo"],
+			message: "GitHub repo is required for this build pack",
+		});
+	}
+	if (
+		data.buildPack &&
+		(data.buildPack === "static" || data.buildPack === "nixpacks") &&
+		!data.outputDir
+	) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["outputDir"],
+			message: "Output directory is required for this build pack",
+		});
+	}
+	if (data.buildPack === "dockerimage" && !data.image) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["image"],
+			message: "Image is required for Docker Image build pack",
+		});
+	}
+};
 
-export const updateAppSchema = baseAppSchema.partial();
+const withDefaults = z.object({
+	name: appFieldDefs.name,
+	githubRepo: appFieldDefs.githubRepo.optional(),
+	branch: appFieldDefs.branch.default("main"),
+	buildPack: appFieldDefs.buildPack,
+	buildCommand: appFieldDefs.buildCommand,
+	outputDir: appFieldDefs.outputDir,
+	port: appFieldDefs.port.default(80),
+	runCommand: appFieldDefs.runCommand,
+	dockerfilePath: appFieldDefs.dockerfilePath.default("./Dockerfile"),
+	isSpa: appFieldDefs.isSpa.default(true),
+	customNginxConfig: appFieldDefs.customNginxConfig,
+	image: appFieldDefs.image,
+});
+
+export const createAppSchema = withDefaults.superRefine(appRefinement);
+
+export const updateAppSchema = baseAppSchema
+	.partial()
+	.superRefine(appRefinement);
 
 export type CreateAppInput = z.infer<typeof createAppSchema>;
 export type UpdateAppInput = z.infer<typeof updateAppSchema>;
