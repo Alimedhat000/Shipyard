@@ -11,6 +11,12 @@ export function createAppsRouter() {
 
 	router.use(requireAuth);
 
+	/**
+	 * List all apps in the authenticated user's organization.
+	 *
+	 * @auth Requires valid session cookie
+	 * @returns {Array<App>} 200 — array of app objects
+	 */
 	router.get("/", async (req, res) => {
 		try {
 			const apps = await appService.listApps(req.orgId!);
@@ -21,6 +27,15 @@ export function createAppsRouter() {
 		}
 	});
 
+	/**
+	 * Create a new app in the authenticated user's organization.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {object} req.body — app config validated by createAppSchema
+	 * @returns {App} 201 — created app object
+	 * @throws 400 — validation_error if body fails schema
+	 * @throws 409 — name_taken if app name already exists in org
+	 */
 	router.post("/", async (req, res) => {
 		try {
 			const parsed = createAppSchema.safeParse(req.body);
@@ -48,6 +63,14 @@ export function createAppsRouter() {
 		}
 	});
 
+	/**
+	 * Get a single app by ID within the authenticated user's organization.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @returns {App} 200 — app object
+	 * @throws 404 — not_found if app does not exist
+	 */
 	router.get("/:id", async (req, res) => {
 		try {
 			const app = await appService.getApp(req.orgId!, req.params.id);
@@ -62,6 +85,17 @@ export function createAppsRouter() {
 		}
 	});
 
+	/**
+	 * Update an existing app by ID.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @param {object} req.body — partial app fields validated by updateAppSchema
+	 * @returns {App} 200 — updated app object
+	 * @throws 400 — validation_error if body fails schema
+	 * @throws 404 — not_found if app does not exist
+	 * @throws 409 — name_taken if new name conflicts with another app
+	 */
 	router.put("/:id", async (req, res) => {
 		try {
 			const parsed = updateAppSchema.safeParse(req.body);
@@ -96,6 +130,15 @@ export function createAppsRouter() {
 		}
 	});
 
+	/**
+	 * Trigger a manual deployment for an app. Creates a deployment record
+	 * and enqueues a deploy job to the worker.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @returns {Deployment} 201 — created deployment object
+	 * @throws 404 — not_found if app does not exist
+	 */
 	router.post("/:id/deployments", async (req, res) => {
 		try {
 			const app = await appService.getApp(req.orgId!, req.params.id);
@@ -127,6 +170,14 @@ export function createAppsRouter() {
 		}
 	});
 
+	/**
+	 * List all deployments for an app, most recent first.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @returns {Array<Deployment>} 200 — array of deployment objects
+	 * @throws 404 — not_found if app does not exist
+	 */
 	router.get("/:id/deployments", async (req, res) => {
 		try {
 			const app = await appService.getApp(req.orgId!, req.params.id);
@@ -143,6 +194,14 @@ export function createAppsRouter() {
 		}
 	});
 
+	/**
+	 * Delete an app by ID.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @returns {void} 204 — no content on success
+	 * @throws 404 — not_found if app does not exist
+	 */
 	router.delete("/:id", async (req, res) => {
 		try {
 			const deleted = await appService.deleteApp(req.orgId!, req.params.id);

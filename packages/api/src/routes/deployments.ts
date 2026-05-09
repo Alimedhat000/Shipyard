@@ -9,6 +9,15 @@ export function createDeploymentsRouter() {
 
 	router.use(requireAuth);
 
+	/**
+	 * Get a single deployment by ID. Verifies the deployment's app
+	 * belongs to the authenticated user's organization.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — deployment ID
+	 * @returns {Deployment} 200 — deployment object
+	 * @throws 404 — not_found if deployment or its app does not exist
+	 */
 	router.get("/:id", async (req, res) => {
 		try {
 			const deployment = await deploymentService.getDeployment(req.params.id);
