@@ -1,8 +1,31 @@
+import type { DeploymentJob } from "@shipyard/shared";
+import { QUEUE_NAME } from "@shipyard/shared";
+import { Worker } from "bullmq";
+import Redis from "ioredis";
+import { getEnv } from "./config/env.js";
+import { processDeployment } from "./jobs/deploy.js";
+
 console.log("Shipyard worker starting...");
 
-// TODO: Connect to Redis, listen for deployment jobs
-// TODO: Docker manager for running builds
-// TODO: Garage S3 client for uploading artifacts
-// TODO: Caddy config regeneration on deploy
+const env = getEnv();
+const connection = new Redis(env.REDIS_URL);
 
-console.log("Worker ready");
+const worker = new Worker<DeploymentJob>(
+	QUEUE_NAME,
+	async (job) => {
+		console.log(`Processing deployment ${job.data.deploymentId}`);
+		await processDeployment(job.data.deploymentId);
+		console.log(`Deployment ${job.data.deploymentId} complete`);
+	},
+	{ connection },
+);
+
+worker.on("completed", (job) => {
+	console.log(`Job ${job.id} completed`);
+});
+
+worker.on("failed", (job, err) => {
+	console.error(`Job ${job?.id} failed:`, err);
+});
+
+console.log("Worker ready, waiting for jobs...");
