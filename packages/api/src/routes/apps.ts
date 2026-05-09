@@ -2,7 +2,9 @@ import { createAppSchema, updateAppSchema } from "@shipyard/shared/validators";
 import { Router } from "express";
 import { logger } from "../config/logger.js";
 import { requireAuth } from "../middleware/auth.js";
+import { myQueue } from "../plugins/queue.js";
 import * as appService from "../services/apps.js";
+import * as deploymentService from "../services/deployments.js";
 
 export function createAppsRouter() {
 	const router = Router();
@@ -90,6 +92,53 @@ export function createAppsRouter() {
 				return;
 			}
 			logger.error({ err }, "Failed to update app");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
+	router.post("/:id/deployments", async (req, res) => {
+		try {
+			const app = await appService.getApp(req.orgId!, req.params.id);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const deployment = await deploymentService.createDeploymentWithBuildJob(
+				req.params.id,
+			);
+
+			await myQueue.add("deploy", {
+				deploymentId: deployment.id,
+				applicationId: req.params.id,
+				titleLog: "Manual deploy",
+				descriptionLog: `Deployment triggered manually for app ${req.params.id}`,
+			});
+
+			logger.info(
+				{ deploymentId: deployment.id, appId: req.params.id },
+				"Deployment created and queued",
+			);
+
+			res.status(201).json(deployment);
+		} catch (err) {
+			logger.error({ err }, "Failed to create deployment");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
+	router.get("/:id/deployments", async (req, res) => {
+		try {
+			const app = await appService.getApp(req.orgId!, req.params.id);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const list = await deploymentService.listDeployments(req.params.id);
+			res.json(list);
+		} catch (err) {
+			logger.error({ err }, "Failed to list deployments");
 			res.status(500).json({ error: "internal_error" });
 		}
 	});
