@@ -1,5 +1,5 @@
 import { buildJobs, deployments } from "@shipyard/shared/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../config/db.js";
 
 // TODO: This is a no-op pipeline for #16 4a. It marks steps as success
@@ -37,7 +37,7 @@ export async function processDeployment(deploymentId: string) {
 			.update(buildJobs)
 			.set({ status: "success", finishedAt: new Date() })
 			.where(
-				eq(buildJobs.deploymentId, deploymentId) && eq(buildJobs.step, step),
+				and(eq(buildJobs.deploymentId, deploymentId), eq(buildJobs.step, step)),
 			);
 	}
 
