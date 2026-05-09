@@ -1,9 +1,14 @@
-import { Plus, Settings, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, Loader2, Plus, Settings, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { CreateAppModal } from "../components/CreateAppModal";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useApps, useDeleteApp } from "../hooks/useApps";
 import { useAuth, useLogout } from "../hooks/useAuth";
+import {
+	type Deployment,
+	useDeployApp,
+	useDeployments,
+} from "../hooks/useDeployments";
 
 const BUILD_PACK_COLORS: Record<string, string> = {
 	nixpacks: "text-purple-400 border-purple-900/50 bg-purple-950/20",
@@ -16,7 +21,10 @@ const BUILD_PACK_COLORS: Record<string, string> = {
 const STATUS_DOT: Record<string, string> = {
 	running: "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]",
 	deploying: "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.5)] animate-pulse",
+	building: "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.5)] animate-pulse",
+	success: "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.5)]",
 	failed: "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]",
+	pending: "bg-ship-fog/40 animate-pulse",
 	idle: "bg-ship-fog/40",
 };
 
@@ -183,15 +191,44 @@ interface AppData {
 
 function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 	const [confirmDelete, setConfirmDelete] = useState(false);
-	const status = (app.status ?? "idle") as string;
+	const [showDeployments, setShowDeployments] = useState(false);
+	const [deployVersion, setDeployVersion] = useState(0);
+	const { data: deployments, latestDeployment } = useDeployments(
+		app.id,
+		showDeployments,
+	);
+	const deployApp = useDeployApp();
+
+	const deployStatus = latestDeployment?.status ?? "idle";
 	const packColor =
 		BUILD_PACK_COLORS[app.buildPack] ?? BUILD_PACK_COLORS.static;
-	const dotColor = STATUS_DOT[status] ?? STATUS_DOT.idle;
+	const dotColor = STATUS_DOT[deployStatus] ?? STATUS_DOT.idle;
+
+	useEffect(() => {
+		if (deployVersion > 0) setShowDeployments(true);
+	}, [deployVersion]);
+
+	function handleDeploy() {
+		deployApp.mutate(app.id, {
+			onSuccess: () => setDeployVersion((n) => n + 1),
+		});
+	}
 
 	return (
-		<div className="border border-ship-deck/40 bg-ship-dock/50 hover:border-ship-deck/70 transition-colors group">
-			<div className="px-4 py-3 flex items-center justify-between gap-4">
+		<div className="border border-ship-deck/40 bg-ship-dock/50 transition-colors">
+			<div className="px-4 py-3 flex items-center justify-between gap-4 group">
 				<div className="flex items-center gap-4 min-w-0">
+					<button
+						type="button"
+						onClick={() => setShowDeployments(!showDeployments)}
+						className="flex-shrink-0 text-ship-fog/40 hover:text-ship-fog transition-colors"
+					>
+						<ChevronDown
+							size={12}
+							className={`transition-transform duration-200 ${showDeployments ? "rotate-0" : "-rotate-90"}`}
+						/>
+					</button>
+
 					{/* Status LED */}
 					<span className="relative flex-shrink-0 w-2 h-2">
 						<span className={`absolute inset-0 rounded-full ${dotColor}`} />
@@ -244,9 +281,11 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 							<button
 								type="button"
 								title="Deploy"
-								className="font-mono text-[10px] tracking-widest text-ship-buoy/60 hover:text-ship-buoy border border-ship-buoy/20 hover:border-ship-buoy/40 px-2 py-1 transition-colors"
+								disabled={deployApp.isPending}
+								onClick={handleDeploy}
+								className="font-mono text-[10px] tracking-widest text-ship-buoy/60 hover:text-ship-buoy border border-ship-buoy/20 hover:border-ship-buoy/40 px-2 py-1 transition-colors disabled:opacity-30"
 							>
-								DEPLOY
+								{deployApp.isPending ? "DEPLOYING..." : "DEPLOY"}
 							</button>
 							<button
 								type="button"
@@ -260,6 +299,45 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 					)}
 				</div>
 			</div>
+
+			{/* Deployment history */}
+			{showDeployments && (
+				<div className="border-t border-ship-deck/30">
+					{!deployments ? (
+						<div className="flex items-center gap-2 px-4 py-3">
+							<Loader2 size={12} className="animate-spin text-ship-fog/40" />
+							<span className="font-mono text-[11px] text-ship-fog/40">
+								Loading deployments...
+							</span>
+						</div>
+					) : deployments.length === 0 ? (
+						<div className="px-4 py-3">
+							<span className="font-mono text-[11px] text-ship-fog/40">
+								No deployments yet
+							</span>
+						</div>
+					) : (
+						deployments.map((d: Deployment) => (
+							<div
+								key={d.id}
+								className="flex items-center gap-3 px-4 py-2 border-b border-ship-deck/20 last:border-b-0"
+							>
+								<span
+									className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+										STATUS_DOT[d.status] ?? STATUS_DOT.idle
+									}`}
+								/>
+								<span className="font-mono text-[11px] text-ship-fog/70 uppercase">
+									{d.status}
+								</span>
+								<span className="font-mono text-[11px] text-ship-fog/40 ml-auto">
+									{new Date(d.createdAt).toLocaleString()}
+								</span>
+							</div>
+						))
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
