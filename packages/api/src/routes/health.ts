@@ -6,6 +6,13 @@ import { redisHealthCheck } from "../plugins/redis.js";
 export function createHealthRouter(): Router {
 	const router = Router();
 
+	/**
+	 * Health check endpoint. Reports the status of the API server,
+	 * database, and Redis connections.
+	 *
+	 * @auth No auth required
+	 * @returns {object} 200 — { status, timestamp, environment, services: { database, redis } }
+	 */
 	router.get("/", async (_req, res) => {
 		const env = getEnv();
 		const dbStatus = await healthCheck()

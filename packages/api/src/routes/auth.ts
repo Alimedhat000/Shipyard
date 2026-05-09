@@ -17,6 +17,12 @@ import {
 export function createAuthRouter() {
 	const router = Router();
 
+	/**
+	 * Redirect the user to GitHub OAuth authorization page.
+	 *
+	 * @auth No auth required
+	 * @returns 302 — redirect to GitHub
+	 */
 	router.get("/github", (_req, res) => {
 		const env = getEnv();
 		const params = new URLSearchParams({
@@ -27,6 +33,16 @@ export function createAuthRouter() {
 		res.redirect(`https://github.com/login/oauth/authorize?${params}`);
 	});
 
+	/**
+	 * GitHub OAuth callback. Exchanges the code for an access token,
+	 * creates/updates the user and organization, sets a session cookie,
+	 * and redirects to the frontend dashboard.
+	 *
+	 * @auth No auth required (handles OAuth handshake)
+	 * @param {string} req.query.code — authorization code from GitHub
+	 * @returns 302 — redirect to dashboard on success, /login?error= on failure
+	 * @throws 500 — redirect to /login?error=auth_failed
+	 */
 	router.get("/github/callback", async (req, res) => {
 		const code = req.query.code as string | undefined;
 
@@ -60,6 +76,13 @@ export function createAuthRouter() {
 		}
 	});
 
+	/**
+	 * Get the currently authenticated user and their organization.
+	 * Returns null (not an error) when no valid session exists.
+	 *
+	 * @auth No auth required — returns null for unauthenticated requests
+	 * @returns {object} 200 — { user, organization } or null
+	 */
 	router.get("/me", async (req, res) => {
 		try {
 			const token = req.cookies?.session_token;
@@ -92,6 +115,13 @@ export function createAuthRouter() {
 		}
 	});
 
+	/**
+	 * Log out the current user by deleting their session and clearing
+	 * the session cookie.
+	 *
+	 * @auth No auth required — idempotent for unauthenticated requests
+	 * @returns {object} 200 — { success: true }
+	 */
 	router.post("/logout", async (req, res) => {
 		try {
 			const token = req.cookies?.session_token;
