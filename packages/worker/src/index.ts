@@ -8,7 +8,7 @@ import { processDeployment } from "./jobs/deploy.js";
 console.log("Shipyard worker starting...");
 
 const env = getEnv();
-const connection = new Redis(env.REDIS_URL);
+const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 const worker = new Worker<DeploymentJob>(
 	QUEUE_NAME,

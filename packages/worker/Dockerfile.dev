@@ -7,4 +7,4 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/worker/package.json packages/worker/
 
 RUN npm install -g pnpm@10.33.2 && \
-    pnpm install --frozen-lockfile --filter @shipyard/worker...
+    pnpm install --frozen-lockfile
