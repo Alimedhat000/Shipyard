@@ -5,6 +5,7 @@ import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { createAppsRouter } from "./routes/apps.js";
 import { createAuthRouter } from "./routes/auth.js";
+import { createDeploymentsRouter } from "./routes/deployments.js";
 import { createHealthRouter } from "./routes/health.js";
 
 const app = express();
@@ -44,6 +45,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", createAuthRouter());
 app.use("/api/health", createHealthRouter());
 app.use("/api/apps", createAppsRouter());
+app.use("/api/deployments", createDeploymentsRouter());
 
 // 404 fallback
 app.use((_req, res) => {
