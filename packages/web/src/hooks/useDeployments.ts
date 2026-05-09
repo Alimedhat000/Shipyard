@@ -16,6 +16,7 @@ export function useDeployments(appId: string, isOpen: boolean) {
 			if (!res.ok) throw new Error("Failed to fetch deployments");
 			return res.json();
 		},
+		enabled: isOpen,
 		refetchInterval: (q) => {
 			if (!isOpen) return false;
 			const data = q.state.data;
@@ -40,10 +41,11 @@ export function useDeployApp() {
 				method: "POST",
 				credentials: "include",
 			});
-			const body = await res.json();
-			if (!res.ok)
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
 				throw new Error(body.message ?? body.error ?? "Failed to deploy");
-			return body;
+			}
+			return res.json();
 		},
 		onSuccess: (_data, appId) => {
 			qc.invalidateQueries({ queryKey: ["deployments", appId] });
