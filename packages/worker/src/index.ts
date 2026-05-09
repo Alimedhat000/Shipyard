@@ -28,4 +28,12 @@ worker.on("failed", (job, err) => {
 	console.error(`Job ${job?.id} failed:`, err);
 });
 
+async function shutdown(signal: string) {
+	console.log(`Received ${signal}, shutting down...`);
+	await worker.close();
+	process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
 console.log("Worker ready, waiting for jobs...");

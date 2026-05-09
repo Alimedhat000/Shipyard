@@ -4,4 +4,10 @@ import Redis from "ioredis";
 import { getEnv } from "../config/env";
 
 const connection = new Redis(getEnv().REDIS_URL);
-export const myQueue = new Queue<DeploymentJob>(QUEUE_NAME, { connection });
+export const myQueue = new Queue<DeploymentJob>(QUEUE_NAME, {
+	connection,
+	defaultJobOptions: {
+		attempts: 3,
+		backoff: { type: "exponential", delay: 2000 },
+	},
+});
