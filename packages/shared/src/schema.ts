@@ -85,6 +85,7 @@ export const apps = pgTable(
 		buildPack: buildPackEnum("build_pack").notNull().default("static"),
 		port: integer("port").default(80),
 		runCommand: varchar("run_command", { length: 500 }),
+		installCommand: varchar("install_command", { length: 500 }),
 		dockerfilePath: varchar("dockerfile_path", { length: 255 }).default(
 			"./Dockerfile",
 		),
@@ -156,6 +157,7 @@ export const deploymentLogs = pgTable(
 			.references(() => deployments.id)
 			.notNull(),
 		content: text("content").notNull(),
+		step: varchar("step", { length: 50 }).notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => ({
