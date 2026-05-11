@@ -1,6 +1,7 @@
 import { buildJobs, deployments } from "@shipyard/shared/schema";
 import { and, eq } from "drizzle-orm";
 import { db } from "../config/db.js";
+import { logger } from "../config/logger.js";
 
 // TODO: This is a no-op pipeline for #16 4a. It marks steps as success
 // without actually cloning, installing, or building. Real build
@@ -8,6 +9,8 @@ import { db } from "../config/db.js";
 const STEPS = ["clone", "install", "build", "verify"] as const;
 
 export async function processDeployment(deploymentId: string) {
+	logger.info({ deploymentId }, "Processing deployment");
+
 	const rows = await db
 		.select()
 		.from(deployments)
