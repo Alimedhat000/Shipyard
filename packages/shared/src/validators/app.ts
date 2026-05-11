@@ -1,6 +1,20 @@
 import { z } from "zod";
 import { BUILD_PACKS } from "../constants";
 
+const noShellMeta = /^[^\n\r;|&`$()<>]+$/;
+
+const safeCommandSchema = z
+	.string()
+	.refine((val) => noShellMeta.test(val), "Contains unsafe shell characters");
+
+const installCommandSchema = z
+	.string()
+	.refine((val) => {
+		const tokens = val.trim().split(/\s+/);
+		return ["npm", "pnpm", "yarn", "bun"].includes(tokens[0]);
+	}, "Must start with a supported package manager (npm, pnpm, yarn, bun)")
+	.refine((val) => noShellMeta.test(val), "Contains unsafe shell characters");
+
 const appFieldDefs = {
 	name: z.string().min(1).max(255),
 	githubRepo: z.string().min(1).max(500),
@@ -9,7 +23,8 @@ const appFieldDefs = {
 	buildCommand: z.string().optional(),
 	outputDir: z.string().optional(),
 	port: z.number().int().positive(),
-	runCommand: z.string().optional(),
+	runCommand: safeCommandSchema.optional(),
+	installCommand: installCommandSchema.optional(),
 	dockerfilePath: z.string(),
 	isSpa: z.boolean(),
 	customNginxConfig: z.string().optional(),
@@ -65,6 +80,7 @@ const withDefaults = z.object({
 	outputDir: appFieldDefs.outputDir,
 	port: appFieldDefs.port.default(80),
 	runCommand: appFieldDefs.runCommand,
+	installCommand: appFieldDefs.installCommand,
 	dockerfilePath: appFieldDefs.dockerfilePath.default("./Dockerfile"),
 	isSpa: appFieldDefs.isSpa.default(true),
 	customNginxConfig: appFieldDefs.customNginxConfig,

@@ -29,6 +29,13 @@
 			"when": 1778279609061,
 			"tag": "0004_tan_speedball",
 			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1778380287132,
+			"tag": "0004_wise_wrecking_crew",
+			"breakpoints": true
 		}
 	]
 }
