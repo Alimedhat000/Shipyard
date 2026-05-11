@@ -3,9 +3,10 @@ import { QUEUE_NAME } from "@shipyard/shared";
 import { Worker } from "bullmq";
 import Redis from "ioredis";
 import { getEnv } from "./config/env.js";
+import { logger } from "./config/logger.js";
 import { processDeployment } from "./jobs/deploy.js";
 
-console.log("Shipyard worker starting...");
+logger.info("Shipyard worker starting...");
 
 const env = getEnv();
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -13,27 +14,30 @@ const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const worker = new Worker<DeploymentJob>(
 	QUEUE_NAME,
 	async (job) => {
-		console.log(`Processing deployment ${job.data.deploymentId}`);
+		logger.info(
+			{ deploymentId: job.data.deploymentId },
+			"Processing deployment",
+		);
 		await processDeployment(job.data.deploymentId);
-		console.log(`Deployment ${job.data.deploymentId} complete`);
+		logger.info({ deploymentId: job.data.deploymentId }, "Deployment complete");
 	},
 	{ connection },
 );
 
 worker.on("completed", (job) => {
-	console.log(`Job ${job.id} completed`);
+	logger.info({ jobId: job.id }, "Job completed");
 });
 
 worker.on("failed", (job, err) => {
-	console.error(`Job ${job?.id} failed:`, err);
+	logger.error({ err, jobId: job?.id }, "Job failed");
 });
 
 async function shutdown(signal: string) {
-	console.log(`Received ${signal}, shutting down...`);
+	logger.info({ signal }, "Shutting down");
 	await worker.close();
 	process.exit(0);
 }
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-console.log("Worker ready, waiting for jobs...");
+logger.info("Worker ready, waiting for jobs...");
