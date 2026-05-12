@@ -69,8 +69,8 @@ describe("withRetry", () => {
 			.mockResolvedValue("ok");
 
 		const start = Date.now();
-		await withRetry(fn, { maxRetries: 2, backoffs: [10, 10] });
+		await withRetry(fn, { maxRetries: 2, backoffs: [50, 50] });
 		const elapsed = Date.now() - start;
-		expect(elapsed).toBeGreaterThanOrEqual(20);
+		expect(elapsed).toBeGreaterThanOrEqual(100);
 	});
 });
