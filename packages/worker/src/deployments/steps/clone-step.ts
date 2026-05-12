@@ -55,7 +55,7 @@ export async function runCloneStep(
 	log.appendLine(`Cloning ${repo}...`);
 
 	try {
-		const result = await withRetry(
+		const _result = await withRetry(
 			async () => {
 				attempts++;
 				const r = await runner.exec(containerId, command, (chunk) =>
