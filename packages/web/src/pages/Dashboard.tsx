@@ -182,10 +182,12 @@ function DashboardContent() {
 interface AppData {
 	id: string;
 	name: string;
+	organizationId: string;
 	githubRepo: string;
 	branch: string;
 	buildPack: string;
 	status?: string;
+	activeUrl?: string | null;
 	createdAt: string;
 }
 
@@ -278,6 +280,16 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 						</div>
 					) : (
 						<>
+							{app.activeUrl && (
+								<a
+									href={app.activeUrl}
+									target="_blank"
+									rel="noreferrer"
+									className="font-mono text-[10px] tracking-widest text-green-500/60 hover:text-green-500 border border-green-500/20 hover:border-green-500/40 px-2 py-1 transition-colors"
+								>
+									VISIT
+								</a>
+							)}
 							<button
 								type="button"
 								title="Deploy"

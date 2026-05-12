@@ -5,6 +5,7 @@ import type {
 	UpdateAppInput,
 } from "@shipyard/shared/validators";
 import { and, eq } from "drizzle-orm";
+import { getEnv } from "../config/env.js";
 import { db } from "../plugins/db.js";
 
 const UNIQUE_VIOLATION = "23505";
@@ -30,11 +31,24 @@ const safeColumns = {
 	updatedAt: apps.updatedAt,
 };
 
+function applyActiveUrl<
+	T extends { name: string; activeDeploymentId: string | null },
+>(item: T): T & { activeUrl: string | null } {
+	const env = getEnv();
+	const domain = `${item.name}.${env.BASE_DOMAIN}`;
+	const scheme = env.AUTO_HTTPS ? "https" : "http";
+	return {
+		...item,
+		activeUrl: item.activeDeploymentId ? `${scheme}://${domain}` : null,
+	};
+}
+
 export async function listApps(orgId: string) {
-	return db
+	const rows = await db
 		.select(safeColumns)
 		.from(apps)
 		.where(eq(apps.organizationId, orgId));
+	return rows.map(applyActiveUrl);
 }
 
 export async function getApp(orgId: string, appId: string) {
@@ -42,7 +56,8 @@ export async function getApp(orgId: string, appId: string) {
 		.select(safeColumns)
 		.from(apps)
 		.where(and(eq(apps.id, appId), eq(apps.organizationId, orgId)));
-	return rows[0] ?? null;
+	const app = rows[0] ?? null;
+	return app ? applyActiveUrl(app) : null;
 }
 
 export async function createApp(orgId: string, input: CreateAppInput) {

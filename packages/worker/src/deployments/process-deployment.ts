@@ -145,7 +145,10 @@ export async function processDeployment(deploymentId: string) {
 	const ctx = await fetchDeploymentContext(deploymentId);
 	const { deployment: _deployment, app, githubAccessToken, userId } = ctx;
 
-	logger.info({ deploymentId, appId: app.id }, "Starting build");
+	logger.info(
+		{ deploymentId, appId: app.id, repo: app.githubRepo, branch: app.branch },
+		"Starting build",
+	);
 
 	// return early
 	if (!githubAccessToken) {
@@ -184,6 +187,10 @@ export async function processDeployment(deploymentId: string) {
 			envVars: envMap,
 		});
 		containerId = container.id;
+		logger.info(
+			{ deploymentId, containerId: containerId.slice(0, 12) },
+			"Build container created",
+		);
 
 		await db
 			.update(deployments)
@@ -261,6 +268,7 @@ export async function processDeployment(deploymentId: string) {
 					step.name,
 					`Step "${step.name}" started`,
 				);
+				logger.info({ deploymentId, step: step.name }, "Step started");
 
 				const result = await step.run();
 
@@ -277,6 +285,10 @@ export async function processDeployment(deploymentId: string) {
 						step.name,
 						`Step "${step.name}" completed`,
 					);
+					logger.info(
+						{ deploymentId, step: step.name, attempts: result.attempts },
+						"Step completed",
+					);
 				} else {
 					await insertStructuredEvent(
 						deploymentId,
@@ -287,7 +299,16 @@ export async function processDeployment(deploymentId: string) {
 						.update(deployments)
 						.set({ status: "failed", finishedAt: new Date() })
 						.where(eq(deployments.id, deploymentId));
-					logger.info({ deploymentId, step: step.name }, "Deployment failed");
+					logger.warn(
+						{
+							deploymentId,
+							step: step.name,
+							error: result.error?.message,
+							category: result.error?.category,
+							attempts: result.attempts,
+						},
+						"Step failed",
+					);
 					return;
 				}
 			}
@@ -339,6 +360,11 @@ export async function processDeployment(deploymentId: string) {
 				.orderBy(desc(deployments.createdAt))
 				.offset(5);
 
+			logger.info(
+				{ count: oldDeployments.length },
+				"Retention cleanup checking old deployments",
+			);
+
 			for (const dep of oldDeployments) {
 				const prefix = `users/${userId}/apps/${app.id}/deployments/${dep.id}`;
 				const list = await s3.send(
@@ -355,7 +381,7 @@ export async function processDeployment(deploymentId: string) {
 						}),
 					);
 					logger.info(
-						{ deploymentId: dep.id },
+						{ deploymentId: dep.id, files: list.Contents.length },
 						"Deleted old deployment from storage",
 					);
 				}
@@ -401,7 +427,12 @@ export async function processDeployment(deploymentId: string) {
 	} finally {
 		if (containerId) {
 			await runner.remove(containerId);
+			logger.info(
+				{ containerId: containerId.slice(0, 12) },
+				"Build container removed",
+			);
 		}
 		fs.rmSync(workspacePath, { recursive: true, force: true });
+		logger.info({ workspacePath }, "Workspace cleaned up");
 	}
 }

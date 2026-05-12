@@ -54,7 +54,7 @@ export async function uploadToObjectStorage(
 	return results;
 }
 
-function discoverFiles(root: string): string[] {
+export function discoverFiles(root: string): string[] {
 	const files: string[] = [];
 	function walk(dir: string) {
 		const entries = fs.readdirSync(dir, { withFileTypes: true });

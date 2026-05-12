@@ -20,6 +20,11 @@ export const envSchema = z.object({
 	API_SECRET: z.string().min(1),
 	SESSION_SECRET: z.string().min(1),
 	ENCRYPTION_KEY: z.string().min(32),
+	BASE_DOMAIN: z.string().min(1),
+	AUTO_HTTPS: z
+		.string()
+		.transform((v) => v === "true")
+		.pipe(z.boolean()),
 	SESSION_TTL: z.string().default("604800"),
 	NODE_ENV: z.string().default("development"),
 	PORT: z.string().default("3000"),
