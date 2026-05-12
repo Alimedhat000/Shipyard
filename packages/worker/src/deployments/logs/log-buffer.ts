@@ -3,61 +3,44 @@ import path from "node:path";
 import { getEnv } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 
-/**
- * Writes build step output to a file on the bind mount.
- *
- * Each step gets its own log file at:
- *   $BUILD_WORKSPACE_DIR/<deployment-id>/logs/<step>.log
- *
- * Structured events (started, completed, failed, OOM, etc.) are
- * written here as well so the full timeline is in one place.
- */
 export class LogBuffer {
 	private step: string;
-	private logPath: string;
+	private logPath: string | null = null;
 	private stream: fs.WriteStream | null = null;
 	private linesWritten = 0;
 
-	/**
-	 * @param deploymentId - UUID of the deployment being built
-	 * @param step - Step name (clone, install, build, verify)
-	 */
 	constructor(deploymentId: string, step: string) {
 		this.step = step;
+		if (!getEnv().LOG_TO_FILE) return;
 		const base = path.join(getEnv().BUILD_WORKSPACE_DIR, deploymentId, "logs");
 		fs.mkdirSync(base, { recursive: true });
 		this.logPath = path.join(base, `${step}.log`);
 	}
 
-	/**
-	 * Appends raw output to the step log file.
-	 * Uses a lazy-opened WriteStream for buffered writes.
-	 */
 	append(content: string) {
-		if (!this.stream) {
+		if (!this.stream && this.logPath) {
 			this.stream = fs.createWriteStream(this.logPath, { flags: "a" });
 		}
-		this.stream.write(content);
+		if (this.stream) {
+			this.stream.write(content);
+		}
 		if (content.endsWith("\n")) {
 			this.linesWritten++;
 		}
 	}
 
-	/** Appends a line (adds newline) to the step log file. */
 	appendLine(content: string) {
 		this.append(`${content}\n`);
 	}
 
-	/**
-	 * Closes the write stream and logs summary. Should be called when
-	 * a step finishes (success or failure) to ensure all data is flushed.
-	 */
 	async flushOnStepEnd() {
 		await this.closeStream();
-		logger.debug(
-			{ step: this.step, path: this.logPath, lines: this.linesWritten },
-			"Step log written",
-		);
+		if (this.logPath) {
+			logger.debug(
+				{ step: this.step, path: this.logPath, lines: this.linesWritten },
+				"Step log written",
+			);
+		}
 	}
 
 	private async closeStream() {

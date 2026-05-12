@@ -5,7 +5,6 @@ import type { StepResult } from "./clone-step.js";
 const SITES_DIR = process.env.SITES_DIR ?? "/var/lib/shipyard/sites";
 
 export async function runCopyStep(
-	_deploymentId: string,
 	appId: string,
 	outputDir: string,
 ): Promise<StepResult> {

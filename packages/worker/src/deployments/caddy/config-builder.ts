@@ -8,9 +8,7 @@ const SITES_ROOT = "/var/lib/shipyard/sites";
 
 export function buildRouteConfig(
 	domain: string,
-	_appId: string,
 	appId: string,
-	_deploymentId: string,
 	isSpa: boolean,
 ): Record<string, unknown> {
 	const root = `${SITES_ROOT}/${appId}`;

@@ -1,3 +1,4 @@
+import { StepError } from "@shipyard/shared";
 import type { App } from "@shipyard/shared/schema";
 import type { DockerRunner } from "../docker/docker-runner.js";
 import { classifyError } from "../errors/classify-error.js";
@@ -68,11 +69,12 @@ export async function runCloneStep(
 						"clone",
 						r.oomKilled,
 					);
-					throw Object.assign(new Error(classified.message), {
-						category: classified.category,
-						exitCode: r.exitCode,
-						stderr: r.stderr,
-					});
+					throw new StepError(
+						classified.category,
+						classified.message,
+						r.exitCode,
+						r.stderr,
+					);
 				}
 				return r;
 			},
@@ -92,24 +94,27 @@ export async function runCloneStep(
 		return { ok: true, attempts };
 	} catch (err) {
 		if (err instanceof RetryExhaustedError) {
-			const cause = err.cause as { category?: string; message?: string };
+			const cause =
+				err.cause instanceof StepError
+					? err.cause
+					: new StepError("system_error", "Clone failed after 3 retries.");
 			return {
 				ok: false,
 				attempts,
-				error: {
-					category: (cause.category as "retryable") ?? "system_error",
-					message: cause.message ?? "Clone failed after 3 retries.",
-				},
+				error: { category: cause.category, message: cause.message },
 			};
 		}
-		const e = err as { category?: string; message?: string };
+		const stepErr =
+			err instanceof StepError
+				? err
+				: new StepError(
+						"user_error",
+						err instanceof Error ? err.message : "Clone failed.",
+					);
 		return {
 			ok: false,
 			attempts,
-			error: {
-				category: (e.category as "user_error" | "system_error") ?? "user_error",
-				message: e.message ?? "Clone failed.",
-			},
+			error: { category: stepErr.category, message: stepErr.message },
 		};
 	}
 }
