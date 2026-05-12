@@ -1,3 +1,4 @@
+/** Build step failure category — determines retry behaviour in the orchestrator. */
 export type FailureCategory = "retryable" | "user_error" | "system_error";
 
 export type ClassifiedError = {
@@ -30,6 +31,21 @@ function matchesAny(text: string, patterns: string[]): boolean {
 	return patterns.some((p) => text.toLowerCase().includes(p.toLowerCase()));
 }
 
+/**
+ * Classifies a build step error into retryable, user_error, or system_error.
+ *
+ * Rules per step (from ADR-0002):
+ * - clone: exit 128 + auth stderr → user_error; network patterns → retryable; else → retryable
+ * - install: ENOSPC → system_error; network → retryable; else → user_error
+ * - build: OOM → system_error; exit 137 → system_error; else → user_error
+ * - verify: any failure → user_error (wrong outputDir config)
+ *
+ * @param exitCode - Exit code from the exec'd command (null if unknown)
+ * @param stderr - Combined stderr output
+ * @param step - Step name ("clone", "install", "build", "verify")
+ * @param oomKilled - Whether Docker detected OOM kill on the container
+ * @returns Classified error with category and user-facing message
+ */
 export function classifyError(
 	exitCode: number | null,
 	stderr: string,

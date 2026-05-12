@@ -18,6 +18,10 @@ export class LogBuffer {
 	private stream: fs.WriteStream | null = null;
 	private linesWritten = 0;
 
+	/**
+	 * @param deploymentId - UUID of the deployment being built
+	 * @param step - Step name (clone, install, build, verify)
+	 */
 	constructor(deploymentId: string, step: string) {
 		this.step = step;
 		const base = path.join(getEnv().BUILD_WORKSPACE_DIR, deploymentId, "logs");
@@ -25,6 +29,10 @@ export class LogBuffer {
 		this.logPath = path.join(base, `${step}.log`);
 	}
 
+	/**
+	 * Appends raw output to the step log file.
+	 * Uses a lazy-opened WriteStream for buffered writes.
+	 */
 	append(content: string) {
 		if (!this.stream) {
 			this.stream = fs.createWriteStream(this.logPath, { flags: "a" });
@@ -35,10 +43,15 @@ export class LogBuffer {
 		}
 	}
 
+	/** Appends a line (adds newline) to the step log file. */
 	appendLine(content: string) {
 		this.append(`${content}\n`);
 	}
 
+	/**
+	 * Closes the write stream and logs summary. Should be called when
+	 * a step finishes (success or failure) to ensure all data is flushed.
+	 */
 	async flushOnStepEnd() {
 		await this.closeStream();
 		logger.debug(

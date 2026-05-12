@@ -71,13 +71,38 @@ function resolveDocker(): Docker {
 	);
 }
 
+/**
+ * Manages the lifecycle of build containers via dockerode.
+ *
+ * Owns: create, exec, stop, remove, inspect, listManaged.
+ * Commands inside the container run via /bin/sh -c.
+ * The container stays alive with `sleep infinity` between step execs.
+ */
 export class DockerRunner {
 	private docker: Docker;
 
+	/**
+	 * @param docker - Optional pre-configured Docker client. Omit to auto-detect socket.
+	 */
 	constructor(docker?: Docker) {
 		this.docker = docker ?? resolveDocker();
 	}
 
+	/**
+	 * Creates and starts a build container.
+	 *
+	 * Container stays alive with `sleep infinity` so multiple exec calls
+	 * can reuse the same filesystem, node_modules, and caches.
+	 *
+	 * @param opts.image - Docker image (e.g. "node:18-bullseye")
+	 * @param opts.memory - Memory limit in bytes
+	 * @param opts.timeout - Kill container after this many ms (0 = no timeout)
+	 * @param opts.workspaceHost - Host path for bind mount
+	 * @param opts.workspaceContainer - Container mount target (e.g. "/workspace")
+	 * @param opts.labels - Docker labels for container tracking
+	 * @param opts.envVars - Environment variables passed via -e
+	 * @returns The started Docker container
+	 */
 	async create(opts: CreateContainerOptions) {
 		const container = await this.docker.createContainer({
 			Image: opts.image,
@@ -102,6 +127,17 @@ export class DockerRunner {
 		return container;
 	}
 
+	/**
+	 * Runs a command inside a build container.
+	 *
+	 * Streams stdout/stderr to the onData callback (for log capture),
+	 * then returns the combined output, exit code, and OOM status.
+	 *
+	 * @param containerId - Docker container ID
+	 * @param command - Shell command to run (via /bin/sh -c)
+	 * @param onData - Called with each stdout/stderr chunk for streaming
+	 * @returns Exit code, OOM flag, and accumulated stdout/stderr
+	 */
 	async exec(
 		containerId: string,
 		command: string,
@@ -162,6 +198,10 @@ export class DockerRunner {
 		});
 	}
 
+	/**
+	 * Gracefully stops a container (5s timeout before force kill).
+	 * Failures are logged but not thrown (best-effort cleanup).
+	 */
 	async stop(containerId: string) {
 		const container = this.docker.getContainer(containerId);
 		try {
@@ -174,6 +214,10 @@ export class DockerRunner {
 		}
 	}
 
+	/**
+	 * Force-removes a container. Failures are logged but not thrown
+	 * (best-effort cleanup).
+	 */
 	async remove(containerId: string) {
 		const container = this.docker.getContainer(containerId);
 		try {
@@ -186,10 +230,17 @@ export class DockerRunner {
 		}
 	}
 
+	/**
+	 * Inspects a container's current state (exit code, OOM, etc.).
+	 */
 	async inspect(containerId: string) {
 		return this.docker.getContainer(containerId).inspect();
 	}
 
+	/**
+	 * Lists all managed build containers (labelled shipyard.managed=true).
+	 * Used during startup reconciliation to clean up orphaned containers.
+	 */
 	async listManaged(): Promise<ManagedContainer[]> {
 		const containers = await this.docker.listContainers({
 			all: true,
