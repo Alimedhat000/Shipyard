@@ -104,6 +104,14 @@ export class DockerRunner {
 	 * @returns The started Docker container
 	 */
 	async create(opts: CreateContainerOptions) {
+		try {
+			await this.docker.pull(opts.image);
+		} catch (err) {
+			logger.warn(
+				{ err, image: opts.image },
+				"Image pull failed, trying to use local",
+			);
+		}
 		const container = await this.docker.createContainer({
 			Image: opts.image,
 			Cmd: ["sleep", "infinity"],
