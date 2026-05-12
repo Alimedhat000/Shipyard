@@ -29,6 +29,7 @@ export class RetryExhaustedError extends Error {
  * @param options.maxRetries - Maximum number of retries (default 3)
  * @param options.backoffs - Custom backoff delays in ms (default [2000, 4000, 8000])
  * @param options.shouldRetry - Predicate to determine if an error is retryable
+ * @param options.onRetry - Called before each retry with (attempt, delayMs, error)
  * @returns The result of the function
  * @throws RetryExhaustedError if all attempts fail
  */
@@ -38,11 +39,13 @@ export async function withRetry<T>(
 		maxRetries?: number;
 		backoffs?: number[];
 		shouldRetry?: ShouldRetry;
+		onRetry?: (attempt: number, delayMs: number, err: unknown) => void;
 	},
 ): Promise<T> {
 	const maxRetries = options?.maxRetries ?? 3;
 	const backoffs = options?.backoffs ?? DEFAULT_BACKOFFS;
 	const shouldRetry = options?.shouldRetry;
+	const onRetry = options?.onRetry;
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
@@ -55,6 +58,7 @@ export async function withRetry<T>(
 				throw err;
 			}
 			const delay = backoffs[attempt] ?? backoffs[backoffs.length - 1];
+			onRetry?.(attempt + 1, delay, err);
 			await sleep(delay);
 		}
 	}

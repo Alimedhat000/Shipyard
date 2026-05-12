@@ -1,5 +1,9 @@
-import { buildJobs, deployments } from "@shipyard/shared/schema";
-import { desc, eq } from "drizzle-orm";
+import {
+	buildJobs,
+	deploymentLogs,
+	deployments,
+} from "@shipyard/shared/schema";
+import { asc, desc, eq } from "drizzle-orm";
 import { db } from "../plugins/db.js";
 
 const safeColumns = {
@@ -69,4 +73,18 @@ export async function getDeployment(deploymentId: string) {
 		.from(deployments)
 		.where(eq(deployments.id, deploymentId));
 	return rows[0] ?? null;
+}
+
+/**
+ * Returns structured log events for a deployment, oldest first.
+ *
+ * @param deploymentId - The deployment to fetch logs for
+ * @returns Array of deployment log entries
+ */
+export async function getDeploymentLogs(deploymentId: string) {
+	return db
+		.select()
+		.from(deploymentLogs)
+		.where(eq(deploymentLogs.deploymentId, deploymentId))
+		.orderBy(asc(deploymentLogs.createdAt));
 }

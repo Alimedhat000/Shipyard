@@ -34,7 +34,7 @@ export async function runBuildStep(
 
 	if (result.exitCode === 0) {
 		log.appendLine("Build completed successfully.");
-		return { ok: true };
+		return { ok: true, attempts: 1 };
 	}
 
 	const classified = classifyError(
@@ -48,6 +48,7 @@ export async function runBuildStep(
 
 	return {
 		ok: false,
+		attempts: 1,
 		error: {
 			category: classified.category,
 			message: classified.message,

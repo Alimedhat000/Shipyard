@@ -7,6 +7,7 @@ import { RetryExhaustedError, withRetry } from "../utils/retry.js";
 /** Result returned by a build step — ok or classified error. */
 export type StepResult = {
 	ok: boolean;
+	attempts: number;
 	error?: {
 		category: "retryable" | "user_error" | "system_error";
 		message: string;
@@ -38,6 +39,7 @@ export async function runCloneStep(
 	if (!repo) {
 		return {
 			ok: false,
+			attempts: 0,
 			error: {
 				category: "user_error",
 				message: "No GitHub repo configured for this app.",
@@ -48,11 +50,14 @@ export async function runCloneStep(
 	const cloneUrl = `https://${token}@github.com/${repo}.git`;
 	const command = `git clone --depth 1 ${cloneUrl} /workspace/repo`;
 
+	let attempts = 0;
+
 	log.appendLine(`Cloning ${repo}...`);
 
 	try {
 		const result = await withRetry(
 			async () => {
+				attempts++;
 				const r = await runner.exec(containerId, command, (chunk) =>
 					log.append(chunk),
 				);
@@ -77,16 +82,20 @@ export async function runCloneStep(
 					const e = err as { category?: string };
 					return e.category === "retryable";
 				},
+				onRetry: (attempt, delay) => {
+					log.appendLine(`Retry ${attempt}/3 in ${delay}ms...`);
+				},
 			},
 		);
 
 		log.appendLine(`Cloned ${repo} successfully.`);
-		return { ok: true };
+		return { ok: true, attempts };
 	} catch (err) {
 		if (err instanceof RetryExhaustedError) {
 			const cause = err.cause as { category?: string; message?: string };
 			return {
 				ok: false,
+				attempts,
 				error: {
 					category: (cause.category as "retryable") ?? "system_error",
 					message: cause.message ?? "Clone failed after 3 retries.",
@@ -96,6 +105,7 @@ export async function runCloneStep(
 		const e = err as { category?: string; message?: string };
 		return {
 			ok: false,
+			attempts,
 			error: {
 				category: (e.category as "user_error" | "system_error") ?? "user_error",
 				message: e.message ?? "Clone failed.",

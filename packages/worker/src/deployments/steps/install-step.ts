@@ -52,11 +52,14 @@ export async function runInstallStep(
 	const lockfileCmd = await detectLockfile(runner, containerId);
 	const installCmd = lockfileCmd ?? app.installCommand ?? "npm install";
 
+	let attempts = 0;
+
 	log.appendLine(`Installing dependencies: ${installCmd}`);
 
 	try {
 		const result = await withRetry(
 			async () => {
+				attempts++;
 				const r = await runner.exec(
 					containerId,
 					`cd /workspace/repo && ${installCmd}`,
@@ -83,16 +86,20 @@ export async function runInstallStep(
 					const e = err as { category?: string };
 					return e.category === "retryable";
 				},
+				onRetry: (attempt, delay) => {
+					log.appendLine(`Retry ${attempt}/3 in ${delay}ms...`);
+				},
 			},
 		);
 
 		log.appendLine("Dependencies installed successfully.");
-		return { ok: true };
+		return { ok: true, attempts };
 	} catch (err) {
 		if (err instanceof RetryExhaustedError) {
 			const cause = err.cause as { category?: string; message?: string };
 			return {
 				ok: false,
+				attempts,
 				error: {
 					category: (cause.category as "retryable") ?? "system_error",
 					message: cause.message ?? "Install failed after 3 retries.",
@@ -102,6 +109,7 @@ export async function runInstallStep(
 		const e = err as { category?: string; message?: string };
 		return {
 			ok: false,
+			attempts,
 			error: {
 				category: (e.category as "user_error" | "system_error") ?? "user_error",
 				message: e.message ?? "Install failed.",

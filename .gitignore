@@ -4,6 +4,7 @@ turbo/
 .turbo/
 packages/*/dist/
 packages/*/.turbo/
+packages/*/coverage/
 packages/api/public/
 *.tsbuildinfo
 .env
