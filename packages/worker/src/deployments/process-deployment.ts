@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
 	apps,
 	buildJobs,
@@ -12,20 +11,19 @@ import {
 	organizationMembers,
 	users,
 } from "@shipyard/shared";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { getEnv } from "../config/env.js";
 import { logger } from "../config/logger.js";
-import { updateCaddyRoute } from "./caddy/client.js";
+import { upsertRoute } from "./caddy/client.js";
 import { DockerRunner } from "./docker/docker-runner.js";
 import { LogBuffer } from "./logs/log-buffer.js";
 import { runBuildStep } from "./steps/build-step.js";
 import type { StepResult } from "./steps/clone-step.js";
 import { runCloneStep } from "./steps/clone-step.js";
+import { runCopyStep } from "./steps/copy-step.js";
 import { runInstallStep } from "./steps/install-step.js";
-import { runUploadStep } from "./steps/upload-step.js";
 import { runVerifyStep } from "./steps/verify-step.js";
-import { getS3Client } from "./storage/s3-client.js";
 
 const TWO_GB = 2 * 1024 * 1024 * 1024;
 
@@ -243,17 +241,17 @@ export async function processDeployment(deploymentId: string) {
 				},
 			},
 			{
-				name: "upload",
+				name: "copy",
 				run: () => {
-					const log = new LogBuffer(deploymentId, "upload");
-					const outputDir = app.outputDir ?? "dist";
-					return runUploadStep(
-						deploymentId,
-						app,
-						userId,
-						outputDir,
-						log,
-					).finally(() => log.flushOnStepEnd());
+					const log = new LogBuffer(deploymentId, "copy");
+					const outputDir = path.join(
+						workspacePath,
+						"repo",
+						app.outputDir ?? "dist",
+					);
+					return runCopyStep(deploymentId, app.id, outputDir).finally(() =>
+						log.flushOnStepEnd(),
+					);
 				},
 			},
 		];
@@ -313,9 +311,6 @@ export async function processDeployment(deploymentId: string) {
 				}
 			}
 
-			const bucket = getEnv().GARAGE_S3_BUCKET;
-			const s3 = getS3Client();
-
 			// Activate deployment
 			await db
 				.update(apps)
@@ -331,10 +326,10 @@ export async function processDeployment(deploymentId: string) {
 					.where(and(eq(domains.appId, app.id), eq(domains.isPrimary, true)));
 				const domain =
 					primaryDomain?.domain ?? `${app.name}.${getEnv().BASE_DOMAIN}`;
-				await updateCaddyRoute(
+				await upsertRoute(
+					app.id,
 					domain,
 					userId,
-					app.id,
 					deploymentId,
 					app.isSpa ?? false,
 				);
@@ -344,47 +339,6 @@ export async function processDeployment(deploymentId: string) {
 					{ err, deploymentId },
 					"Caddy route update failed — site may not be accessible until resolved",
 				);
-			}
-
-			// Retention: delete old deployments from S3 (keep newest 5)
-			const oldDeployments = await db
-				.select({ id: deployments.id })
-				.from(deployments)
-				.where(
-					and(
-						eq(deployments.appId, app.id),
-						eq(deployments.status, "success"),
-						ne(deployments.id, deploymentId),
-					),
-				)
-				.orderBy(desc(deployments.createdAt))
-				.offset(5);
-
-			logger.info(
-				{ count: oldDeployments.length },
-				"Retention cleanup checking old deployments",
-			);
-
-			for (const dep of oldDeployments) {
-				const prefix = `users/${userId}/apps/${app.id}/deployments/${dep.id}`;
-				const list = await s3.send(
-					new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }),
-				);
-				if (list.Contents?.length) {
-					await s3.send(
-						new DeleteObjectsCommand({
-							Bucket: bucket,
-							Delete: {
-								Objects: list.Contents.map((o) => ({ Key: o.Key })),
-								Quiet: true,
-							},
-						}),
-					);
-					logger.info(
-						{ deploymentId: dep.id, files: list.Contents.length },
-						"Deleted old deployment from storage",
-					);
-				}
 			}
 
 			await db

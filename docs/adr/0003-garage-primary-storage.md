@@ -1,6 +1,6 @@
 # ADR-0003: Garage as Primary Storage with S3-Compatible Abstraction
 ## Status
-Accepted
+Superseded by [ADR-0013](./0013-volume-based-storage.md)
 ## Context
 While AWS S3 is a standard for blob storage, it introduces dependencies (AWS account, IAM credentials, billing) that are friction for a self-hosted project. For local development and self-hosted consistency, Garage provides an S3-compatible API with no external dependencies. The storage layer must support both without code changes.
 ## Decision

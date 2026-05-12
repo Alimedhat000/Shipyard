@@ -84,14 +84,12 @@ Shipyard is a self-hosted deployment control plane. It clones GitHub repos, buil
 
 ### Storage & Rollback
 
-1. As a developer, I want my deployed files stored in Garage under `/users/{userId}/apps/{appId}/deployments/{deploymentId}/`, so that every deployment is isolated and addressable.
-2. As a developer, I want the platform to keep the newest 5 deployments and delete older ones automatically, so that rollback is possible without unlimited storage growth.
-3. As a developer, I want rollback to update the active deployment pointer in the database, so that Caddy can route to the correct deployment.
-4. As a platform operator, I want Caddy config to be regenerated at deploy time (not at request time), so that routing is fast and DB-free.
-5. As a developer, I want all deploys on `*.bigboss.dev` to route via Caddy to the correct S3 prefix, so that my app is accessible at a predictable URL.
-6. As a platform operator, I want Caddy config generated from templates with string replacement, so that the system stays simple.
-7. As a developer, I want SPA fallback (every 404 serves index.html), so that client-side routing works in my React/Vue app.
-8. As a developer, I want the platform to store content hashes in a DB table (`deployment_files`) for future deduplication, so that the schema is ready when hashing is added.
+1. As a developer, I want my deployed files stored in a shared volume at `/var/lib/shipyard/sites/{appId}/`, so that Caddy can serve them directly.
+2. As a developer, I want rollback to update the active deployment pointer in the database, so that Caddy can route to the correct deployment.
+3. As a platform operator, I want Caddy config to be regenerated at deploy time (not at request time), so that routing is fast and DB-free.
+4. As a developer, I want all deploys on `*.bigboss.dev` to route via Caddy to the correct app directory, so that my app is accessible at a predictable URL.
+5. As a platform operator, I want Caddy config generated from templates with string replacement, so that the system stays simple.
+6. As a developer, I want SPA fallback (every 404 serves index.html), so that client-side routing works in my React/Vue app.
 
 ### Queue & Workers
 
@@ -111,7 +109,7 @@ Shipyard is a self-hosted deployment control plane. It clones GitHub repos, buil
 
 ### Local Dev
 
-1. As a developer, I want all services (API, worker, Redis, Postgres, Garage, Caddy) in a Docker Compose file with dev overrides, so that onboarding is frictionless.
+1. As a developer, I want all services (API, worker, Redis, Postgres, Caddy) in a Docker Compose file with dev overrides, so that onboarding is frictionless.
 2. As a developer, I want database migrations via Drizzle, so that schema changes are versioned and reproducible.
 3. As a developer, I want all environment variables validated via Zod against a `.env.example`, so that missing config is caught early.
 4. As a developer, I want the API to hot-reload on code changes, so that I can iterate quickly.
@@ -125,13 +123,13 @@ Shipyard is a self-hosted deployment control plane. It clones GitHub repos, buil
 
 - **Separation of concerns.** The logical layer (deployments, rollback, app settings) is separate from the execution layer (build_jobs, queue). This allows safe retries, worker scaling, and independent state tracking.
 
-- **Storage abstraction.** The storage layer is abstracted behind an S3-compatible interface (`uploadToObjectStorage()`). This allows swapping Garage for AWS S3 in production without changing business logic.
+- **Storage abstraction.** Worker copies build output to a shared volume mounted in Caddy. Future: S3-compatible storage can be added for redundancy/backup.
 
 ### Modules
 
 1. **API Server** — Express/Fastify REST API. Auth via GitHub OAuth + session cookies stored in Redis. Endpoints for apps, deployments, envvars, logs. No business logic here — delegates to service layer.
 
-2. **Worker** — Node.js process pulling from BullMQ. Fetches deployment from DB, clones GitHub repo, runs Docker container, extracts output, uploads to Garage, updates deployment status, regenerates Caddy config. Stateless job processing.
+2. **Worker** — Node.js process pulling from BullMQ. Fetches deployment from DB, clones GitHub repo, runs Docker container, extracts output, copies to shared volume, updates deployment status, regenerates Caddy config. Stateless job processing.
 
 3. **Deployment Engine** — Core service layer. Orchestrates the build lifecycle. Handles step sequencing, error classification, retry logic, log streaming.
 
@@ -141,7 +139,7 @@ Shipyard is a self-hosted deployment control plane. It clones GitHub repos, buil
 
 6. **Build Container Manager** — Docker container lifecycle (create, start, exec, logs, kill, rm). Handles timeouts and cleanup.
 
-7. **Storage Service** — S3-compatible uploads. Handles retries, manifest tracking.
+7. **Storage Service** — Copies build output to shared volume. Handles file manifest tracking.
 
 8. **Caddy Config Manager** — JSON API config generation. Sends config to Caddy's `/config/` endpoint. Caddy auto-reloads with built-in auto-HTTPS.
 
@@ -346,7 +344,7 @@ Each deployed app runs as a long-lived Docker container:
 ## Testing Decisions
 
 - **Test external behavior only.** Do not test BullMQ internals, Docker SDK calls, or Garage SDK calls. Mock these at the boundary.
-- **Good tests:** Queue job creation → verify job in Redis. Trigger deploy → verify deployment status in DB. Build success → verify Garage upload, Caddy config update, status transition.
+- **Good tests:** Queue job creation → verify job in Redis. Trigger deploy → verify deployment status in DB. Build success → verify volume copy, Caddy config update, status transition.
 - **Modules to test in isolation:**
   - Step-aware retry logic (Deployment Engine)
   - Env var encryption/decryption

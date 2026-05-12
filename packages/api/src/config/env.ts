@@ -8,10 +8,6 @@ config({ path: resolve(process.cwd(), "../../.env") });
 export const envSchema = z.object({
 	DATABASE_URL: z.string().min(1),
 	REDIS_URL: z.string().min(1),
-	GARAGE_S3_ENDPOINT: z.string().min(1),
-	GARAGE_S3_ACCESS_KEY: z.string().min(1),
-	GARAGE_S3_SECRET_KEY: z.string().min(1),
-	GARAGE_S3_BUCKET: z.string().min(1),
 	CADDY_ADMIN_URL: z.string().min(1),
 	GITHUB_CLIENT_ID: z.string().min(1),
 	GITHUB_CLIENT_SECRET: z.string().min(1),

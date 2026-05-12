@@ -1,48 +1,33 @@
-import { getEnv } from "../../config/env.js";
-
 export type RouteConfig = {
 	domain: string;
 	handle: unknown[];
 	terminal: boolean;
 };
 
-/**
- * Builds a Caddy per-route JSON config for a deployment.
- *
- * The route reverse-proxies the domain to Garage S3, rewriting the URI
- * to the deployment's S3 prefix. For SPAs, 404 errors from Garage
- * are caught and rewritten to /index.html (client-side routing fallback).
- */
+const SITES_ROOT = "/var/lib/shipyard/sites";
+
 export function buildRouteConfig(
 	domain: string,
-	userId: string,
+	_appId: string,
 	appId: string,
-	deploymentId: string,
+	_deploymentId: string,
 	isSpa: boolean,
 ): Record<string, unknown> {
-	const bucket = getEnv().GARAGE_S3_BUCKET;
-	const prefix = `users/${userId}/apps/${appId}/deployments/${deploymentId}`;
-
-	const proxy = {
-		handler: "reverse_proxy" as const,
-		upstreams: [{ dial: "garage:3900" }],
-		rewrite: { uri: `/${bucket}/${prefix}{uri}` },
-	};
+	const root = `${SITES_ROOT}/${appId}`;
 
 	if (!isSpa) {
 		return {
 			"@id": `app-${appId}`,
 			match: [{ host: [domain] }],
-			handle: [proxy],
+			handle: [
+				{
+					handler: "file_server",
+					root,
+				},
+			],
 			terminal: true,
 		};
 	}
-
-	const indexProxy = {
-		handler: "reverse_proxy" as const,
-		upstreams: [{ dial: "garage:3900" }],
-		rewrite: { uri: `/${bucket}/${prefix}/index.html` },
-	};
 
 	return {
 		"@id": `app-${appId}`,
@@ -52,21 +37,24 @@ export function buildRouteConfig(
 				handler: "subroute",
 				routes: [
 					{
-						handle: [proxy],
-					},
-				],
-				errors: [
-					{
-						routes: [
+						handle: [
 							{
-								handle: [
-									{ handler: "rewrite" as const, uri: indexProxy.rewrite.uri },
-									indexProxy,
-								],
+								handler: "file_server",
+								root,
 							},
 						],
 					},
 				],
+				errors: {
+					routes: [
+						{
+							handle: [
+								{ handler: "rewrite", uri: "/index.html" },
+								{ handler: "file_server", root },
+							],
+						},
+					],
+				},
 			},
 		],
 		terminal: true,

@@ -14,30 +14,20 @@ describe("buildRouteConfig", () => {
 		expect(route.terminal).toBe(true);
 	});
 
-	it("uses simple reverse_proxy when isSpa is false", () => {
+	it("uses file_server with correct root when isSpa is false", () => {
 		const route = buildRouteConfig(domain, userId, appId, deploymentId, false);
 		expect(route.handle).toHaveLength(1);
-		const handler = (route.handle as Record<string, unknown>[])[0];
-		expect(handler.handler).toBe("reverse_proxy");
-		expect(handler.upstreams).toEqual([{ dial: "garage:3900" }]);
+		const handler = route.handle[0] as Record<string, unknown>;
+		expect(handler.handler).toBe("file_server");
+		expect(handler.root).toBe("/var/lib/shipyard/sites/app-1");
 	});
 
-	it("wraps in subroute with error fallback when isSpa is true", () => {
+	it("uses subroute with error fallback when isSpa is true", () => {
 		const route = buildRouteConfig(domain, userId, appId, deploymentId, true);
 		expect(route.handle).toHaveLength(1);
-		const handler = (route.handle as Record<string, unknown>[])[0];
+		const handler = route.handle[0] as Record<string, unknown>;
 		expect(handler.handler).toBe("subroute");
 		expect(handler.routes).toBeDefined();
 		expect(handler.errors).toBeDefined();
-	});
-
-	it("includes rewrite URI with correct S3 prefix", () => {
-		const route = buildRouteConfig(domain, userId, appId, deploymentId, false);
-		const handler = (route.handle as Record<string, unknown>[])[0];
-		const rewrite = handler.rewrite as Record<string, string>;
-		expect(rewrite.uri).toContain("shipyard");
-		expect(rewrite.uri).toContain(
-			"users/user-1/apps/app-1/deployments/deploy-1",
-		);
 	});
 });

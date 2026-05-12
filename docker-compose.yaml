@@ -32,18 +32,6 @@ services:
     networks:
       - shipyard
 
-  garage:
-    image: dxflrs/amd64_garage:v2.2.0
-    container_name: shipyard-garage
-    volumes:
-      - garage_data:/var/lib/garage
-      - ./infra/garage.toml:/etc/garage.toml:ro
-    environment:
-      - RUST_LOG=info
-    restart: unless-stopped
-    networks:
-      - shipyard
-
   caddy:
     image: caddy:2-alpine
     container_name: shipyard-caddy
@@ -51,6 +39,7 @@ services:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+      - shipyard_sites:/var/lib/shipyard/sites:ro
     ports:
       - "80:80"
       - "443:443"
@@ -72,10 +61,6 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-shipyard}:${POSTGRES_PASSWORD:-shipyard}@postgres:5432/${POSTGRES_DB:-shipyard}
       REDIS_URL: redis://redis:6379
-      GARAGE_S3_ENDPOINT: http://garage:3900
-      GARAGE_S3_ACCESS_KEY: ${GARAGE_S3_ACCESS_KEY:-garage_key}
-      GARAGE_S3_SECRET_KEY: ${GARAGE_S3_SECRET_KEY:-garage_secret}
-      GARAGE_S3_BUCKET: ${GARAGE_S3_BUCKET:-shipyard}
       CADDY_ADMIN_URL: http://caddy:2019
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
@@ -93,8 +78,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      garage:
-        condition: service_started
       caddy:
         condition: service_healthy
     restart: unless-stopped
@@ -106,13 +89,11 @@ services:
       context: .
       dockerfile: packages/worker/Dockerfile
     container_name: shipyard-worker
+    volumes:
+      - shipyard_sites:/var/lib/shipyard/sites
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-shipyard}:${POSTGRES_PASSWORD:-shipyard}@postgres:5432/${POSTGRES_DB:-shipyard}
       REDIS_URL: redis://redis:6379
-      GARAGE_S3_ENDPOINT: http://garage:3900
-      GARAGE_S3_ACCESS_KEY: ${GARAGE_S3_ACCESS_KEY:-garage_key}
-      GARAGE_S3_SECRET_KEY: ${GARAGE_S3_SECRET_KEY:-garage_secret}
-      GARAGE_S3_BUCKET: ${GARAGE_S3_BUCKET:-shipyard}
       CADDY_ADMIN_URL: http://caddy:2019
       BASE_DOMAIN: ${BASE_DOMAIN:-bigboss.dev}
       AUTO_HTTPS: ${AUTO_HTTPS:-false}
@@ -123,8 +104,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      garage:
-        condition: service_started
     restart: unless-stopped
     networks:
       - shipyard
@@ -144,9 +123,9 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  garage_data:
   caddy_data:
   caddy_config:
+  shipyard_sites:
 
 networks:
   shipyard:

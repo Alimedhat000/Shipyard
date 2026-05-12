@@ -1,5 +1,7 @@
 {
-  admin :2019
+  admin :2019 {
+    origins http://shipyard.local http://shipyard http://worker
+  }
 }
 
 :80 {

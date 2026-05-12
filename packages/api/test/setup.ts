@@ -3,10 +3,6 @@ import { vi } from "vitest";
 const testEnv = {
 	DATABASE_URL: "postgres://localhost:5432/test",
 	REDIS_URL: "redis://localhost:6379",
-	GARAGE_S3_ENDPOINT: "http://localhost:39080",
-	GARAGE_S3_ACCESS_KEY: "test",
-	GARAGE_S3_SECRET_KEY: "test",
-	GARAGE_S3_BUCKET: "test",
 	CADDY_ADMIN_URL: "http://localhost:2019",
 	GITHUB_CLIENT_ID: "test_client_id",
 	GITHUB_CLIENT_SECRET: "test_client_secret",

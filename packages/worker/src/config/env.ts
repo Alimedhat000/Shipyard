@@ -17,10 +17,6 @@ const envSchema = z.object({
 	ENCRYPTION_KEY: z
 		.string()
 		.regex(/^[0-9a-f]{64}$/i, "Must be 64 hex characters (32 bytes)"),
-	GARAGE_S3_ENDPOINT: z.string().min(1),
-	GARAGE_S3_ACCESS_KEY: z.string().min(1),
-	GARAGE_S3_SECRET_KEY: z.string().min(1),
-	GARAGE_S3_BUCKET: z.string().min(1),
 	CADDY_ADMIN_URL: z.string().min(1),
 	BASE_DOMAIN: z.string().min(1),
 	AUTO_HTTPS: z

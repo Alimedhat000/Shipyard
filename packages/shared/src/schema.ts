@@ -109,7 +109,7 @@ export const deployments = pgTable(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		appId: uuid("app_id")
-			.references(() => apps.id)
+			.references(() => apps.id, { onDelete: "cascade" })
 			.notNull(),
 		commitSha: varchar("commit_sha", { length: 255 }),
 		commitMessage: text("commit_message"),
@@ -132,7 +132,7 @@ export const buildJobs = pgTable(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		deploymentId: uuid("deployment_id")
-			.references(() => deployments.id)
+			.references(() => deployments.id, { onDelete: "cascade" })
 			.notNull(),
 		step: varchar("step", { length: 50 }).notNull(),
 		status: varchar("status", { length: 50 }).notNull().default("pending"),
@@ -154,7 +154,7 @@ export const deploymentLogs = pgTable(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		deploymentId: uuid("deployment_id")
-			.references(() => deployments.id)
+			.references(() => deployments.id, { onDelete: "cascade" })
 			.notNull(),
 		content: text("content").notNull(),
 		step: varchar("step", { length: 50 }).notNull(),
@@ -189,7 +189,7 @@ export const deploymentFiles = pgTable(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		deploymentId: uuid("deployment_id")
-			.references(() => deployments.id)
+			.references(() => deployments.id, { onDelete: "cascade" })
 			.notNull(),
 		filePath: varchar("file_path", { length: 1000 }).notNull(),
 		contentHash: varchar("content_hash", { length: 255 }),

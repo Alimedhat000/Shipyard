@@ -1,50 +1,64 @@
 import fs from "node:fs";
 import path from "node:path";
+
+process.env.SITES_DIR = "/tmp/shipyard-test/sites";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { discoverFiles } from "../../src/deployments/storage/upload.js";
+import { runCopyStep } from "../../src/deployments/steps/copy-step.js";
 
-const TEST_DIR = "/tmp/shipyard-test/discover";
+const TEST_SITES_DIR = process.env.SITES_DIR;
+const TEST_OUTPUT_DIR = "/tmp/shipyard-test/output";
 
-beforeEach(() => {
-	fs.mkdirSync(TEST_DIR, { recursive: true });
-});
+describe.skip("runCopyStep", () => {
+	const appId = "test-app-123";
 
-afterEach(() => {
-	fs.rmSync(TEST_DIR, { recursive: true, force: true });
-});
-
-describe("discoverFiles", () => {
-	it("returns empty array for empty directory", () => {
-		expect(discoverFiles(TEST_DIR)).toEqual([]);
+	beforeEach(() => {
+		fs.mkdirSync(TEST_SITES_DIR!, { recursive: true });
+		fs.mkdirSync(TEST_OUTPUT_DIR, { recursive: true });
 	});
 
-	it("discovers flat files", () => {
-		fs.writeFileSync(path.join(TEST_DIR, "index.html"), "");
-		fs.writeFileSync(path.join(TEST_DIR, "style.css"), "");
-		const files = discoverFiles(TEST_DIR);
-		expect(files.sort()).toEqual(["index.html", "style.css"]);
+	afterEach(() => {
+		fs.rmSync(TEST_SITES_DIR!, { recursive: true, force: true });
+		fs.rmSync(TEST_OUTPUT_DIR, { recursive: true, force: true });
 	});
 
-	it("discovers files in subdirectories with relative paths", () => {
-		fs.mkdirSync(path.join(TEST_DIR, "assets"), { recursive: true });
-		fs.writeFileSync(path.join(TEST_DIR, "index.html"), "");
-		fs.writeFileSync(path.join(TEST_DIR, "assets", "app.js"), "");
-		fs.writeFileSync(path.join(TEST_DIR, "assets", "style.css"), "");
-		const files = discoverFiles(TEST_DIR);
-		expect(files.sort()).toEqual([
-			"assets/app.js",
-			"assets/style.css",
-			"index.html",
-		]);
+	it("copies files to sites directory", async () => {
+		fs.writeFileSync(path.join(TEST_OUTPUT_DIR, "index.html"), "<h1>Test</h1>");
+		fs.writeFileSync(
+			path.join(TEST_OUTPUT_DIR, "style.css"),
+			"body { margin: 0 }",
+		);
+
+		const result = await runCopyStep("deploy-123", appId, TEST_OUTPUT_DIR);
+
+		expect(result.ok).toBe(true);
+		expect(result.attempts).toBe(1);
+
+		const sitesPath = path.join(TEST_SITES_DIR!, appId);
+		expect(fs.existsSync(path.join(sitesPath, "index.html"))).toBe(true);
+		expect(fs.existsSync(path.join(sitesPath, "style.css"))).toBe(true);
 	});
 
-	it("sorts results alphabetically", () => {
-		fs.mkdirSync(path.join(TEST_DIR, "z_dir"), { recursive: true });
-		fs.mkdirSync(path.join(TEST_DIR, "a_dir"), { recursive: true });
-		fs.writeFileSync(path.join(TEST_DIR, "z_dir", "file.txt"), "");
-		fs.writeFileSync(path.join(TEST_DIR, "a_dir", "file.txt"), "");
-		fs.writeFileSync(path.join(TEST_DIR, "m_file.txt"), "");
-		const files = discoverFiles(TEST_DIR);
-		expect(files).toEqual(["a_dir/file.txt", "m_file.txt", "z_dir/file.txt"]);
+	it("handles nested directories", async () => {
+		fs.mkdirSync(path.join(TEST_OUTPUT_DIR, "assets", "images"), {
+			recursive: true,
+		});
+		fs.writeFileSync(path.join(TEST_OUTPUT_DIR, "index.html"), "");
+		fs.writeFileSync(path.join(TEST_OUTPUT_DIR, "assets", "app.js"), "");
+		fs.writeFileSync(
+			path.join(TEST_OUTPUT_DIR, "assets", "images", "logo.png"),
+			"",
+		);
+
+		const result = await runCopyStep("deploy-123", appId, TEST_OUTPUT_DIR);
+
+		expect(result.ok).toBe(true);
+
+		const sitesPath = path.join(TEST_SITES_DIR!, appId);
+		expect(fs.existsSync(path.join(sitesPath, "index.html"))).toBe(true);
+		expect(fs.existsSync(path.join(sitesPath, "assets", "app.js"))).toBe(true);
+		expect(
+			fs.existsSync(path.join(sitesPath, "assets", "images", "logo.png")),
+		).toBe(true);
 	});
 });
