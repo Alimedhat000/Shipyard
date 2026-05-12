@@ -1,0 +1,16 @@
+{
+	"admin": {
+		"listen": ":2019",
+		"origins": ["http://shipyard.local", "http://shipyard", "http://worker"]
+	},
+	"apps": {
+		"http": {
+			"servers": {
+				"srv0": {
+					"listen": [":80"],
+					"routes": []
+				}
+			}
+		}
+	}
+}

@@ -35,8 +35,9 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: shipyard-caddy
+    command: caddy run --config /etc/caddy/caddy.json
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./infra/caddy/caddy.json:/etc/caddy/caddy.json
       - caddy_data:/data
       - caddy_config:/config
       - shipyard_sites:/var/lib/shipyard/sites:ro
