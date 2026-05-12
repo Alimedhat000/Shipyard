@@ -1,9 +1,15 @@
 const DEFAULT_BACKOFFS = [2000, 4000, 8000];
 
+/** A function that may be retried on failure. */
 export type RetryableFn<T> = () => Promise<T>;
 
+/** Predicate that decides whether an error is retryable. */
 export type ShouldRetry = (err: unknown) => boolean;
 
+/**
+ * Thrown when all retry attempts are exhausted.
+ * The `cause` field contains the last error thrown by the attempted function.
+ */
 export class RetryExhaustedError extends Error {
 	constructor(
 		public readonly attempts: number,
@@ -14,6 +20,18 @@ export class RetryExhaustedError extends Error {
 	}
 }
 
+/**
+ * Executes an async function with exponential backoff retry.
+ * Default backoff: 2s, 4s, 8s. Max retries: 3.
+ * Provide `shouldRetry` to bail early on non-retryable errors.
+ *
+ * @param fn - The async function to execute (possibly multiple times)
+ * @param options.maxRetries - Maximum number of retries (default 3)
+ * @param options.backoffs - Custom backoff delays in ms (default [2000, 4000, 8000])
+ * @param options.shouldRetry - Predicate to determine if an error is retryable
+ * @returns The result of the function
+ * @throws RetryExhaustedError if all attempts fail
+ */
 export async function withRetry<T>(
 	fn: RetryableFn<T>,
 	options?: {

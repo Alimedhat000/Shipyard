@@ -12,6 +12,9 @@ const envSchema = z.object({
 	DOCKER_HOST: z.string().optional(),
 	BUILD_WORKSPACE_DIR: z.string().default("/var/lib/shipyard/builds"),
 	WORKER_ID: z.string().default(`worker-${hostname()}`),
+	ENCRYPTION_KEY: z
+		.string()
+		.regex(/^[0-9a-f]{64}$/i, "Must be 64 hex characters (32 bytes)"),
 });
 
 export type Env = z.infer<typeof envSchema>;
