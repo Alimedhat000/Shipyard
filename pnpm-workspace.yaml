@@ -1,3 +1,11 @@
 name: shipyard
 packages:
   - "packages/*"
+pnpm:
+  allowBuilds:
+    cpu-features: true
+    esbuild: true
+    msgpackr-extract: true
+    protobufjs: true
+    simple-git-hooks: true
+    ssh2: true
