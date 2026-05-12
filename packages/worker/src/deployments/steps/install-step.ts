@@ -57,7 +57,7 @@ export async function runInstallStep(
 	log.appendLine(`Installing dependencies: ${installCmd}`);
 
 	try {
-		const result = await withRetry(
+		const _result = await withRetry(
 			async () => {
 				attempts++;
 				const r = await runner.exec(

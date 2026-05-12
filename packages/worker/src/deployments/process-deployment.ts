@@ -1,26 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
+import { DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
 	apps,
 	buildJobs,
 	decrypt,
 	deploymentLogs,
 	deployments,
+	domains,
 	envVars,
 	organizationMembers,
 	users,
 } from "@shipyard/shared";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { getEnv } from "../config/env.js";
 import { logger } from "../config/logger.js";
+import { updateCaddyRoute } from "./caddy/client.js";
 import { DockerRunner } from "./docker/docker-runner.js";
 import { LogBuffer } from "./logs/log-buffer.js";
 import { runBuildStep } from "./steps/build-step.js";
 import type { StepResult } from "./steps/clone-step.js";
 import { runCloneStep } from "./steps/clone-step.js";
 import { runInstallStep } from "./steps/install-step.js";
+import { runUploadStep } from "./steps/upload-step.js";
 import { runVerifyStep } from "./steps/verify-step.js";
+import { getS3Client } from "./storage/s3-client.js";
 
 const TWO_GB = 2 * 1024 * 1024 * 1024;
 
@@ -38,6 +43,7 @@ async function fetchDeploymentContext(deploymentId: string) {
 			deployment: deployments,
 			app: apps,
 			githubAccessToken: users.githubAccessToken,
+			userId: users.id,
 		})
 		.from(deployments)
 		.innerJoin(apps, eq(deployments.appId, apps.id))
@@ -137,7 +143,7 @@ async function insertStructuredEvent(
  */
 export async function processDeployment(deploymentId: string) {
 	const ctx = await fetchDeploymentContext(deploymentId);
-	const { deployment: _deployment, app, githubAccessToken } = ctx;
+	const { deployment: _deployment, app, githubAccessToken, userId } = ctx;
 
 	logger.info({ deploymentId, appId: app.id }, "Starting build");
 
@@ -229,6 +235,20 @@ export async function processDeployment(deploymentId: string) {
 					);
 				},
 			},
+			{
+				name: "upload",
+				run: () => {
+					const log = new LogBuffer(deploymentId, "upload");
+					const outputDir = app.outputDir ?? "dist";
+					return runUploadStep(
+						deploymentId,
+						app,
+						userId,
+						outputDir,
+						log,
+					).finally(() => log.flushOnStepEnd());
+				},
+			},
 		];
 
 		const timeoutMs = (app.buildTimeout ?? 900) * 1000;
@@ -269,6 +289,75 @@ export async function processDeployment(deploymentId: string) {
 						.where(eq(deployments.id, deploymentId));
 					logger.info({ deploymentId, step: step.name }, "Deployment failed");
 					return;
+				}
+			}
+
+			const bucket = getEnv().GARAGE_S3_BUCKET;
+			const s3 = getS3Client();
+
+			// Activate deployment
+			await db
+				.update(apps)
+				.set({ activeDeploymentId: deploymentId })
+				.where(eq(apps.id, app.id));
+			logger.info({ deploymentId }, "Deployment activated");
+
+			// Caddy: update route for this deployment
+			try {
+				const [primaryDomain] = await db
+					.select({ domain: domains.domain })
+					.from(domains)
+					.where(and(eq(domains.appId, app.id), eq(domains.isPrimary, true)));
+				const domain =
+					primaryDomain?.domain ?? `${app.name}.${getEnv().BASE_DOMAIN}`;
+				await updateCaddyRoute(
+					domain,
+					userId,
+					app.id,
+					deploymentId,
+					app.isSpa ?? false,
+				);
+				logger.info({ domain }, "Caddy route updated");
+			} catch (err) {
+				logger.warn(
+					{ err, deploymentId },
+					"Caddy route update failed — site may not be accessible until resolved",
+				);
+			}
+
+			// Retention: delete old deployments from S3 (keep newest 5)
+			const oldDeployments = await db
+				.select({ id: deployments.id })
+				.from(deployments)
+				.where(
+					and(
+						eq(deployments.appId, app.id),
+						eq(deployments.status, "success"),
+						ne(deployments.id, deploymentId),
+					),
+				)
+				.orderBy(desc(deployments.createdAt))
+				.offset(5);
+
+			for (const dep of oldDeployments) {
+				const prefix = `users/${userId}/apps/${app.id}/deployments/${dep.id}`;
+				const list = await s3.send(
+					new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }),
+				);
+				if (list.Contents?.length) {
+					await s3.send(
+						new DeleteObjectsCommand({
+							Bucket: bucket,
+							Delete: {
+								Objects: list.Contents.map((o) => ({ Key: o.Key })),
+								Quiet: true,
+							},
+						}),
+					);
+					logger.info(
+						{ deploymentId: dep.id },
+						"Deleted old deployment from storage",
+					);
 				}
 			}
 
