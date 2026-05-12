@@ -27,6 +27,16 @@
   "dependencies": {
     "drizzle-kit": "^0.30.1"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "cpu-features",
+      "esbuild",
+      "msgpackr-extract",
+      "protobufjs",
+      "simple-git-hooks",
+      "ssh2"
+    ]
+  },
   "simple-git-hooks": {
     "pre-commit": "STAGED=$(git diff --cached --name-only --diff-filter=ACM); echo \"$STAGED\" | grep -qE '\\.(js|jsx|ts|tsx|css|json)$' || exit 0; pnpm exec biome check --staged --write; echo \"$STAGED\" | xargs git add"
   }
