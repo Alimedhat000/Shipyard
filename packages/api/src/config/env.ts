@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { encryptionKeySchema } from "@shipyard/shared";
 import { config } from "dotenv";
 import { z } from "zod";
 
@@ -15,7 +16,7 @@ export const envSchema = z.object({
 	FRONTEND_URL: z.string().url().default("http://localhost:5173"),
 	API_SECRET: z.string().min(1),
 	SESSION_SECRET: z.string().min(1),
-	ENCRYPTION_KEY: z.string().min(32),
+	ENCRYPTION_KEY: encryptionKeySchema,
 	BASE_DOMAIN: z.string().min(1),
 	AUTO_HTTPS: z
 		.string()

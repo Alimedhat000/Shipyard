@@ -23,6 +23,11 @@ const envSchema = z.object({
 		.string()
 		.transform((v) => v === "true")
 		.pipe(z.boolean()),
+	LOG_TO_FILE: z
+		.string()
+		.default("false")
+		.transform((v) => v === "true")
+		.pipe(z.boolean()),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -4,12 +4,12 @@ import { buildRouteConfig } from "./config-builder.js";
 export async function upsertRoute(
 	appId: string,
 	domain: string,
-	userId: string,
-	deploymentId: string,
+	_userId: string,
+	_deploymentId: string,
 	isSpa: boolean,
 ): Promise<void> {
 	const adminUrl = getEnv().CADDY_ADMIN_URL;
-	const route = buildRouteConfig(domain, userId, appId, deploymentId, isSpa);
+	const route = buildRouteConfig(domain, appId, isSpa);
 	const routeId = `app-${appId}`;
 
 	const headers = {

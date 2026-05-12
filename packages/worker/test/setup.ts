@@ -12,6 +12,7 @@ const testEnv = {
 	CADDY_ADMIN_URL: "http://caddy:2019",
 	ENCRYPTION_KEY:
 		"ded637fc26820406b811e228d84a0c26dc8b561d6d7fea7ecd0d980b2544cc61",
+	LOG_TO_FILE: "true",
 };
 
 Object.entries(testEnv).forEach(([key, value]) => {

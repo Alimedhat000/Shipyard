@@ -1,3 +1,4 @@
+import { StepError } from "@shipyard/shared";
 import type { App } from "@shipyard/shared/schema";
 import type { DockerRunner } from "../docker/docker-runner.js";
 import { classifyError } from "../errors/classify-error.js";
@@ -72,19 +73,19 @@ export async function runInstallStep(
 						"install",
 						r.oomKilled,
 					);
-					throw Object.assign(new Error(classified.message), {
-						category: classified.category,
-						exitCode: r.exitCode,
-						stderr: r.stderr,
-					});
+					throw new StepError(
+						classified.category,
+						classified.message,
+						r.exitCode,
+						r.stderr,
+					);
 				}
 				return r;
 			},
 			{
 				maxRetries: 3,
 				shouldRetry: (err: unknown) => {
-					const e = err as { category?: string };
-					return e.category === "retryable";
+					return err instanceof StepError && err.category === "retryable";
 				},
 				onRetry: (attempt, delay) => {
 					log.appendLine(`Retry ${attempt}/3 in ${delay}ms...`);
@@ -96,24 +97,27 @@ export async function runInstallStep(
 		return { ok: true, attempts };
 	} catch (err) {
 		if (err instanceof RetryExhaustedError) {
-			const cause = err.cause as { category?: string; message?: string };
+			const cause =
+				err.cause instanceof StepError
+					? err.cause
+					: new StepError("system_error", "Install failed after 3 retries.");
 			return {
 				ok: false,
 				attempts,
-				error: {
-					category: (cause.category as "retryable") ?? "system_error",
-					message: cause.message ?? "Install failed after 3 retries.",
-				},
+				error: { category: cause.category, message: cause.message },
 			};
 		}
-		const e = err as { category?: string; message?: string };
+		const stepErr =
+			err instanceof StepError
+				? err
+				: new StepError(
+						"user_error",
+						err instanceof Error ? err.message : "Install failed.",
+					);
 		return {
 			ok: false,
 			attempts,
-			error: {
-				category: (e.category as "user_error" | "system_error") ?? "user_error",
-				message: e.message ?? "Install failed.",
-			},
+			error: { category: stepErr.category, message: stepErr.message },
 		};
 	}
 }

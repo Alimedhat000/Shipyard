@@ -75,7 +75,7 @@ const worker = new Worker<DeploymentJob>(
 		await processDeployment(job.data.deploymentId);
 		logger.info({ deploymentId: job.data.deploymentId }, "Deployment complete");
 	},
-	{ connection },
+	{ connection, concurrency: 1 },
 );
 
 worker.on("completed", (job) => {
