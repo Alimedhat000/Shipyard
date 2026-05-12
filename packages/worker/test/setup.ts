@@ -9,10 +9,6 @@ const testEnv = {
 	DOCKER_HOST: "unix:///var/run/docker.sock",
 	BUILD_WORKSPACE_DIR: "/tmp/shipyard-test/builds",
 	WORKER_ID: "worker-test",
-	GARAGE_S3_ENDPOINT: "http://garage:3900",
-	GARAGE_S3_ACCESS_KEY: "test_key",
-	GARAGE_S3_SECRET_KEY: "test_secret",
-	GARAGE_S3_BUCKET: "shipyard",
 	CADDY_ADMIN_URL: "http://caddy:2019",
 	ENCRYPTION_KEY:
 		"ded637fc26820406b811e228d84a0c26dc8b561d6d7fea7ecd0d980b2544cc61",
