@@ -10,6 +10,7 @@ export async function upsertRoute(
 ): Promise<void> {
 	const adminUrl = getEnv().CADDY_ADMIN_URL;
 	const route = buildRouteConfig(domain, userId, appId, deploymentId, isSpa);
+	const routeId = `app-${appId}`;
 
 	const routesUrl = `${adminUrl}/config/apps/http/servers/srv0/routes`;
 
@@ -27,14 +28,18 @@ export async function upsertRoute(
 		Record<string, unknown>
 	>;
 
-	const filteredRoutes = existingRoutes.filter(
-		(r) => r["@id"] !== `app-${appId}`,
-	);
+	await fetch(`${routesUrl}/${routeId}`, {
+		method: "DELETE",
+		headers: { Origin: "http://shipyard.local" },
+	}).catch(() => {});
 
-	const updatedRoutes = [route, ...filteredRoutes];
+	const updatedRoutes = [
+		route,
+		...existingRoutes.filter((r) => r["@id"] !== routeId),
+	];
 
 	const res = await fetch(routesUrl, {
-		method: "PUT",
+		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
 			Origin: "http://shipyard.local",
