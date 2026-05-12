@@ -94,10 +94,15 @@ async function finalizeBuildJobRow(
 	deploymentId: string,
 	step: string,
 	ok: boolean,
+	attempts: number,
 ) {
 	await db
 		.update(buildJobs)
-		.set({ status: ok ? "success" : "failed", finishedAt: new Date() })
+		.set({
+			status: ok ? "success" : "failed",
+			finishedAt: new Date(),
+			attempts,
+		})
 		.where(
 			and(
 				eq(buildJobs.deploymentId, deploymentId),
@@ -136,6 +141,7 @@ export async function processDeployment(deploymentId: string) {
 
 	logger.info({ deploymentId, appId: app.id }, "Starting build");
 
+	// return early
 	if (!githubAccessToken) {
 		await db
 			.update(deployments)
@@ -160,7 +166,7 @@ export async function processDeployment(deploymentId: string) {
 		const container = await runner.create({
 			image: "node:18-bullseye",
 			memory: TWO_GB,
-			timeout: (app.buildTimeout ?? 900) * 1000,
+			timeout: 0,
 			workspaceHost: workspacePath,
 			workspaceContainer: "/workspace",
 			labels: {
@@ -225,50 +231,79 @@ export async function processDeployment(deploymentId: string) {
 			},
 		];
 
-		for (const step of stepRunners) {
-			await createBuildJobRow(deploymentId, step.name);
-			await insertStructuredEvent(
-				deploymentId,
-				step.name,
-				`Step "${step.name}" started`,
-			);
+		const timeoutMs = (app.buildTimeout ?? 900) * 1000;
 
-			const result = await step.run();
-
-			await finalizeBuildJobRow(deploymentId, step.name, result.ok);
-
-			if (result.ok) {
+		const stepLoop = (async () => {
+			for (const step of stepRunners) {
+				await createBuildJobRow(deploymentId, step.name);
 				await insertStructuredEvent(
 					deploymentId,
 					step.name,
-					`Step "${step.name}" completed`,
+					`Step "${step.name}" started`,
 				);
-			} else {
-				await insertStructuredEvent(
+
+				const result = await step.run();
+
+				await finalizeBuildJobRow(
 					deploymentId,
 					step.name,
-					`Step "${step.name}" failed: ${result.error?.message}`,
+					result.ok,
+					result.attempts,
 				);
-				await db
-					.update(deployments)
-					.set({ status: "failed", finishedAt: new Date() })
-					.where(eq(deployments.id, deploymentId));
-				logger.info({ deploymentId, step: step.name }, "Deployment failed");
-				return;
+
+				if (result.ok) {
+					await insertStructuredEvent(
+						deploymentId,
+						step.name,
+						`Step "${step.name}" completed`,
+					);
+				} else {
+					await insertStructuredEvent(
+						deploymentId,
+						step.name,
+						`Step "${step.name}" failed: ${result.error?.message}`,
+					);
+					await db
+						.update(deployments)
+						.set({ status: "failed", finishedAt: new Date() })
+						.where(eq(deployments.id, deploymentId));
+					logger.info({ deploymentId, step: step.name }, "Deployment failed");
+					return;
+				}
 			}
-		}
 
-		await db
-			.update(deployments)
-			.set({ status: "success", finishedAt: new Date() })
-			.where(eq(deployments.id, deploymentId));
-		logger.info({ deploymentId }, "Deployment succeeded");
+			await db
+				.update(deployments)
+				.set({ status: "success", finishedAt: new Date() })
+				.where(eq(deployments.id, deploymentId));
+			logger.info({ deploymentId }, "Deployment succeeded");
+		})();
+
+		const timeoutGuard = new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error(
+							`Deployment timed out after ${app.buildTimeout ?? 900} seconds`,
+						),
+					),
+				timeoutMs,
+			),
+		);
+
+		await Promise.race([stepLoop, timeoutGuard]);
 	} catch (err) {
-		logger.error({ err, deploymentId }, "Build error");
+		const isTimeout = err instanceof Error && err.message.includes("timed out");
+		logger.error(
+			{ err, deploymentId },
+			isTimeout ? "Deployment timed out" : "Build error",
+		);
 		await insertStructuredEvent(
 			deploymentId,
 			"system",
-			`Build error: ${err instanceof Error ? err.message : "Unknown error"}`,
+			isTimeout
+				? `Deployment timed out after ${app.buildTimeout ?? 900} seconds.`
+				: `Build error: ${err instanceof Error ? err.message : "Unknown error"}`,
 		);
 		await db
 			.update(deployments)

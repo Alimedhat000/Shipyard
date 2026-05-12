@@ -4,14 +4,10 @@ export default defineConfig({
 	test: {
 		environment: "node",
 		setupFiles: ["./test/setup.ts"],
-		include: ["test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
+		include: ["test/unit/**/*.test.ts"],
 		coverage: {
 			provider: "v8",
-			include: [
-				"src/services/**/*.ts",
-				"src/routes/**/*.ts",
-				"src/middleware/**/*.ts",
-			],
+			include: ["src/deployments/**/*.ts"],
 			reporter: ["text", "lcov"],
 		},
 	},

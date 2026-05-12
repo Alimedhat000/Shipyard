@@ -39,5 +39,37 @@ export function createDeploymentsRouter() {
 		}
 	});
 
+	/**
+	 * Retrieves structured log events for a deployment.
+	 *
+	 * Returns step-level events (started, completed, failed, OOM, etc.)
+	 * ordered chronologically.
+	 *
+	 * @param {string} req.params.id — deployment ID
+	 * @returns {{ logs: DeploymentLog[] }} 200 — log entries
+	 * @throws 404 — not_found if deployment or its app does not exist
+	 */
+	router.get("/:id/logs", async (req, res) => {
+		try {
+			const deployment = await deploymentService.getDeployment(req.params.id);
+			if (!deployment) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const app = await appService.getApp(req.orgId!, deployment.appId);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const logs = await deploymentService.getDeploymentLogs(req.params.id);
+			res.json({ logs });
+		} catch (err) {
+			logger.error({ err }, "Failed to get deployment logs");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
 	return router;
 }

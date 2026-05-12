@@ -11,7 +11,7 @@ const DOTFILES = new Set([".gitkeep", ".DS_Store", ".git"]);
  * Recursively counts non-dotfiles in a directory.
  * Returns 0 if the directory doesn't exist or can't be read.
  */
-function countFiles(dir: string): number {
+export function countFiles(dir: string): number {
 	let count = 0;
 	try {
 		const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -61,6 +61,7 @@ export async function runVerifyStep(
 		log.appendLine(msg);
 		return {
 			ok: false,
+			attempts: 1,
 			error: { category: "user_error", message: msg },
 		};
 	}
@@ -72,6 +73,7 @@ export async function runVerifyStep(
 		log.appendLine(msg);
 		return {
 			ok: false,
+			attempts: 1,
 			error: { category: "user_error", message: msg },
 		};
 	}
@@ -79,5 +81,5 @@ export async function runVerifyStep(
 	log.appendLine(
 		`Output directory '${outputDir}' verified: ${fileCount} file(s).`,
 	);
-	return { ok: true };
+	return { ok: true, attempts: 1 };
 }

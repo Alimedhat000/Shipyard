@@ -8,7 +8,9 @@ config({ path: resolve(process.cwd(), "../../.env") });
 const envSchema = z.object({
 	DATABASE_URL: z.string().min(1),
 	REDIS_URL: z.string().min(1),
-	NODE_ENV: z.enum(["development", "production"]).default("development"),
+	NODE_ENV: z
+		.enum(["development", "production", "test"])
+		.default("development"),
 	DOCKER_HOST: z.string().optional(),
 	BUILD_WORKSPACE_DIR: z.string().default("/var/lib/shipyard/builds"),
 	WORKER_ID: z.string().default(`worker-${hostname()}`),
