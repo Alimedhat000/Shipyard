@@ -1,10 +1,20 @@
-import { createAppSchema, updateAppSchema } from "@shipyard/shared/validators";
+import type {
+	CreateEnvVarInput,
+	UpdateEnvVarInput,
+} from "@shipyard/shared/validators";
+import {
+	createAppSchema,
+	createEnvVarSchema,
+	updateAppSchema,
+	updateEnvVarSchema,
+} from "@shipyard/shared/validators";
 import { Router } from "express";
 import { logger } from "../config/logger.js";
 import { requireAuth } from "../middleware/auth.js";
 import { myQueue } from "../plugins/queue.js";
 import * as appService from "../services/apps.js";
 import * as deploymentService from "../services/deployments.js";
+import * as envVarService from "../services/env-vars.js";
 
 export function createAppsRouter() {
 	const router = Router();
@@ -190,6 +200,142 @@ export function createAppsRouter() {
 			res.json(list);
 		} catch (err) {
 			logger.error({ err }, "Failed to list deployments");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
+	/**
+	 * List all env vars for an app (values masked for secrets).
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @returns {Array<EnvVar>} 200 — array of env var objects with masked values
+	 * @throws 404 — not_found if app does not exist
+	 */
+	router.get("/:id/envvars", async (req, res) => {
+		try {
+			const app = await appService.getApp(req.orgId!, req.params.id);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const list = await envVarService.listEnvVars(req.params.id);
+			res.json(list);
+		} catch (err) {
+			logger.error({ err }, "Failed to list env vars");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
+	/**
+	 * Create a new env var for an app. Secret values are encrypted at rest.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @param {object} req.body — { key, value, isSecret? }
+	 * @returns {EnvVar} 201 — created env var object (value masked if secret)
+	 * @throws 400 — validation_error if body fails schema
+	 * @throws 404 — not_found if app does not exist
+	 */
+	router.post("/:id/envvars", async (req, res) => {
+		try {
+			const app = await appService.getApp(req.orgId!, req.params.id);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const parsed = createEnvVarSchema.safeParse(req.body);
+			if (!parsed.success) {
+				res.status(400).json({
+					error: "validation_error",
+					details: parsed.error.flatten().fieldErrors,
+				});
+				return;
+			}
+
+			const envVar = await envVarService.createEnvVar(
+				req.params.id,
+				parsed.data as CreateEnvVarInput,
+			);
+			res.status(201).json(envVar);
+		} catch (err) {
+			logger.error({ err }, "Failed to create env var");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
+	/**
+	 * Update an existing env var.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @param {string} req.params.envvarId — env var ID
+	 * @param {object} req.body — partial { key?, value?, isSecret? }
+	 * @returns {EnvVar} 200 — updated env var object
+	 * @throws 400 — validation_error if body fails schema
+	 * @throws 404 — not_found if app or env var does not exist
+	 */
+	router.put("/:id/envvars/:envvarId", async (req, res) => {
+		try {
+			const app = await appService.getApp(req.orgId!, req.params.id);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const parsed = updateEnvVarSchema.safeParse(req.body);
+			if (!parsed.success) {
+				res.status(400).json({
+					error: "validation_error",
+					details: parsed.error.flatten().fieldErrors,
+				});
+				return;
+			}
+
+			const envVar = await envVarService.updateEnvVar(
+				req.params.envvarId,
+				parsed.data as UpdateEnvVarInput,
+			);
+			if (!envVar) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			res.json(envVar);
+		} catch (err) {
+			logger.error({ err }, "Failed to update env var");
+			res.status(500).json({ error: "internal_error" });
+		}
+	});
+
+	/**
+	 * Delete an env var.
+	 *
+	 * @auth Requires valid session cookie
+	 * @param {string} req.params.id — app ID
+	 * @param {string} req.params.envvarId — env var ID
+	 * @returns {void} 204 — no content on success
+	 * @throws 404 — not_found if app or env var does not exist
+	 */
+	router.delete("/:id/envvars/:envvarId", async (req, res) => {
+		try {
+			const app = await appService.getApp(req.orgId!, req.params.id);
+			if (!app) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			const deleted = await envVarService.deleteEnvVar(req.params.envvarId);
+			if (!deleted) {
+				res.status(404).json({ error: "not_found" });
+				return;
+			}
+
+			res.status(204).send();
+		} catch (err) {
+			logger.error({ err }, "Failed to delete env var");
 			res.status(500).json({ error: "internal_error" });
 		}
 	});
