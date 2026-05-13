@@ -121,7 +121,38 @@ async function reconcileStartup() {
 		logger.info({ count: restored }, "Caddy routes reconciled");
 	}
 
+	await reconcileSitesDir();
+
 	logger.info("Startup reconciliation complete");
+}
+
+async function reconcileSitesDir() {
+	const sitesDir = env.SITES_DIR;
+	let entries: string[];
+	try {
+		entries = fs.readdirSync(sitesDir);
+	} catch {
+		return; // doesn't exist yet — nothing to clean
+	}
+
+	const appRows = await db.select({ id: apps.id }).from(apps);
+	const activeIds = new Set(appRows.map((r) => r.id));
+
+	let removed = 0;
+	for (const entry of entries) {
+		if (activeIds.has(entry)) continue;
+		const fullPath = path.join(sitesDir, entry);
+		try {
+			fs.rmSync(fullPath, { recursive: true, force: true });
+			removed++;
+		} catch (err) {
+			logger.warn({ err, entry }, "Failed to remove orphaned site directory");
+		}
+	}
+
+	if (removed > 0) {
+		logger.info({ count: removed }, "Orphaned site directories cleaned up");
+	}
 }
 
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });

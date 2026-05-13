@@ -13,6 +13,7 @@ const envSchema = z.object({
 		.default("development"),
 	DOCKER_HOST: z.string().optional(),
 	BUILD_WORKSPACE_DIR: z.string().default("/var/lib/shipyard/builds"),
+	SITES_DIR: z.string().default("/var/lib/shipyard/sites"),
 	WORKER_ID: z.string().default(`worker-${hostname()}`),
 	ENCRYPTION_KEY: z
 		.string()
