@@ -13,6 +13,7 @@ const testEnv = {
 	ENCRYPTION_KEY:
 		"ded637fc26820406b811e228d84a0c26dc8b561d6d7fea7ecd0d980b2544cc61",
 	LOG_TO_FILE: "true",
+	SITES_DIR: "/tmp/shipyard-test/sites",
 };
 
 Object.entries(testEnv).forEach(([key, value]) => {
