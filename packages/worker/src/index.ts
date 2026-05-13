@@ -1,19 +1,75 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { DeploymentJob } from "@shipyard/shared";
-import { deploymentLogs, deployments, QUEUE_NAME } from "@shipyard/shared";
+import {
+	apps,
+	deploymentLogs,
+	deployments,
+	domains,
+	organizationMembers,
+	QUEUE_NAME,
+	users,
+} from "@shipyard/shared";
 import { Worker } from "bullmq";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import Redis from "ioredis";
 import { db } from "./config/db.js";
 import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
+import { upsertRoute } from "./deployments/caddy/client.js";
 import { DockerRunner } from "./deployments/docker/docker-runner.js";
 import { processDeployment } from "./jobs/deploy.js";
 
 logger.info("Shipyard worker starting...");
 
 const env = getEnv();
+
+async function reconcileCaddyRoutes(): Promise<number> {
+	const rows = await db
+		.select({
+			app: apps,
+			userId: users.id,
+			primaryDomain: domains.domain,
+		})
+		.from(apps)
+		.innerJoin(
+			organizationMembers,
+			eq(apps.organizationId, organizationMembers.organizationId),
+		)
+		.innerJoin(users, eq(organizationMembers.userId, users.id))
+		.leftJoin(
+			domains,
+			and(eq(domains.appId, apps.id), eq(domains.isPrimary, true)),
+		)
+		.where(isNotNull(apps.activeDeploymentId));
+
+	let restored = 0;
+	for (const row of rows) {
+		const domain =
+			row.primaryDomain ??
+			`${(row.app as Record<string, unknown>).name}.${env.BASE_DOMAIN}`;
+		try {
+			await upsertRoute(
+				(row.app as Record<string, unknown>).id as string,
+				domain,
+				row.userId as string,
+				(row.app as Record<string, unknown>).activeDeploymentId as string,
+				((row.app as Record<string, unknown>).isSpa as boolean) ?? false,
+			);
+			restored++;
+			logger.info(
+				{ appId: (row.app as Record<string, unknown>).id, domain },
+				"Caddy route restored",
+			);
+		} catch (err) {
+			logger.warn(
+				{ err, appId: (row.app as Record<string, unknown>).id, domain },
+				"Failed to restore Caddy route",
+			);
+		}
+	}
+	return restored;
+}
 
 async function reconcileStartup() {
 	logger.info("Running startup reconciliation...");
@@ -58,6 +114,11 @@ async function reconcileStartup() {
 		}
 	} catch {
 		// workspace dir doesn't exist yet — nothing to clean
+	}
+
+	const restored = await reconcileCaddyRoutes();
+	if (restored > 0) {
+		logger.info({ count: restored }, "Caddy routes reconciled");
 	}
 
 	logger.info("Startup reconciliation complete");

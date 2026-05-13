@@ -2,11 +2,11 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/api/package.json packages/api/
 
-RUN npm install -g pnpm@10.33.2 && \
+RUN npm install -g pnpm@11.1.1 && \
     pnpm install --frozen-lockfile --filter @shipyard/api...
 
 COPY . .
@@ -18,11 +18,11 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/api/package.json packages/api/
 
-RUN npm install -g pnpm@10.33.2 && \
+RUN npm install -g pnpm@11.1.1 && \
     pnpm install --frozen-lockfile --prod --filter @shipyard/api...
 
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/
@@ -31,4 +31,5 @@ COPY --from=builder /app/drizzle drizzle/
 
 EXPOSE 3000
 
+ENV CI=true
 CMD ["pnpm", "--filter=@shipyard/api", "run", "start"]
