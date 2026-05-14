@@ -1,15 +1,21 @@
 import { getEnv } from "../../config/env.js";
-import { buildRouteConfig } from "./config-builder.js";
+import {
+	buildReverseProxyRouteConfig,
+	buildRouteConfig,
+} from "./config-builder.js";
 
 export async function upsertRoute(
 	appId: string,
 	domain: string,
 	_userId: string,
 	_deploymentId: string,
-	isSpa: boolean,
+	isSpaOrPort: boolean | number,
 ): Promise<void> {
 	const adminUrl = getEnv().CADDY_ADMIN_URL;
-	const route = buildRouteConfig(domain, appId, isSpa);
+	const route =
+		typeof isSpaOrPort === "number"
+			? buildReverseProxyRouteConfig(domain, appId, isSpaOrPort)
+			: buildRouteConfig(domain, appId, isSpaOrPort);
 	const routeId = `app-${appId}`;
 
 	const headers = {

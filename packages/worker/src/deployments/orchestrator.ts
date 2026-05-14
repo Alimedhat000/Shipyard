@@ -38,7 +38,7 @@ export interface OrchestratorDeps {
 		domain: string,
 		userId: string,
 		deploymentId: string,
-		isSpa: boolean,
+		isSpaOrPort: boolean | number,
 	) => Promise<void>;
 }
 
@@ -147,6 +147,16 @@ export class DeploymentOrchestrator {
 			{ deploymentId, appId: app.id, repo: app.githubRepo },
 			"Starting build",
 		);
+
+		if (app.buildPack === "dockerfile") {
+			await this.processDockerfileBuild(
+				deploymentId,
+				app,
+				userId,
+				githubAccessToken,
+			);
+			return;
+		}
 
 		if (!githubAccessToken) {
 			await this.db
@@ -403,6 +413,225 @@ export class DeploymentOrchestrator {
 				this.deps.logger.info(
 					{ containerId: containerId.slice(0, 12) },
 					"Build container removed",
+				);
+			}
+			fs.rmSync(workspacePath, { recursive: true, force: true });
+			this.deps.logger.info({ workspacePath }, "Workspace cleaned up");
+		}
+	}
+
+	private async processDockerfileBuild(
+		deploymentId: string,
+		app: Record<string, any>,
+		userId: string,
+		githubAccessToken: string | null,
+	) {
+		if (!githubAccessToken) {
+			await this.db
+				.update(deployments)
+				.set({ status: "failed", finishedAt: new Date() })
+				.where(eq(deployments.id, deploymentId));
+			await this.insertStructuredEvent(
+				deploymentId,
+				"clone",
+				"No GitHub token available. The owner needs to re-authenticate.",
+			);
+			this.deps.logger.warn(
+				{ deploymentId },
+				"Deployment failed: no GitHub token",
+			);
+			return;
+		}
+
+		const workspacePath = this.createWorkspace(deploymentId);
+		const imageTag = `shipyard-${app.id}:${deploymentId}`;
+		const containerName = `shipyard-app-${app.id}`;
+		const port = app.port ?? 80;
+		const dockerfilePath = app.dockerfilePath ?? "./Dockerfile";
+		let buildContainerId: string | undefined;
+
+		try {
+			const envMap = await this.fetchDecryptedEnvVars(app.id);
+
+			const buildContainer = await this.deps.runner.create({
+				image: "alpine/git",
+				memory: TWO_GB,
+				timeout: 0,
+				workspaceHost: workspacePath,
+				workspaceContainer: "/workspace",
+				labels: {
+					"shipyard.managed": "true",
+					"shipyard.type": "build",
+					"shipyard.deployment-id": deploymentId,
+					"shipyard.worker-id": this.deps.env.WORKER_ID,
+				},
+				envVars: {},
+			});
+			buildContainerId = buildContainer.id;
+			this.deps.logger.info(
+				{ deploymentId, containerId: buildContainerId.slice(0, 12) },
+				"Clone container created",
+			);
+
+			await this.db
+				.update(deployments)
+				.set({ status: "building", startedAt: new Date() })
+				.where(eq(deployments.id, deploymentId));
+
+			const runner = this.deps.runner;
+
+			// Step 1: Clone repo
+			await this.createBuildJobRow(deploymentId, "clone");
+			await this.insertStructuredEvent(
+				deploymentId,
+				"clone",
+				'Step "clone" started',
+			);
+			this.deps.logger.info({ deploymentId }, "Clone step started");
+
+			const cloneLog = new LogBuffer(deploymentId, "clone");
+			const cloneResult = await runCloneStep(
+				runner,
+				buildContainerId,
+				// biome-ignore lint/suspicious/noExplicitAny: runtime shape matches
+				app as any,
+				githubAccessToken,
+				cloneLog,
+			).finally(() => cloneLog.flushOnStepEnd());
+
+			await this.finalizeBuildJobRow(
+				deploymentId,
+				"clone",
+				cloneResult.ok,
+				cloneResult.attempts || 0,
+			);
+
+			if (!cloneResult.ok) {
+				await this.insertStructuredEvent(
+					deploymentId,
+					"clone",
+					`Step "clone" failed: ${cloneResult.error?.message}`,
+				);
+				await this.db
+					.update(deployments)
+					.set({ status: "failed", finishedAt: new Date() })
+					.where(eq(deployments.id, deploymentId));
+				this.deps.logger.warn(
+					{ deploymentId, error: cloneResult.error?.message },
+					"Clone step failed",
+				);
+				return;
+			}
+
+			await this.insertStructuredEvent(
+				deploymentId,
+				"clone",
+				'Step "clone" completed',
+			);
+			this.deps.logger.info({ deploymentId }, "Clone step completed");
+
+			// Step 2: Docker build
+			await this.createBuildJobRow(deploymentId, "dockerfile-build");
+
+			const repoDir = path.join(workspacePath, "repo");
+			const absDockerfile = path.resolve(repoDir, dockerfilePath);
+
+			await this.deps.runner.buildImage({
+				contextDir: repoDir,
+				dockerfile: absDockerfile,
+				tag: imageTag,
+				onData: (chunk) => {
+					// Build output is captured by LogBuffer via flushOnStepEnd
+					// For inline logging, we just let it pass through
+				},
+			});
+
+			await this.finalizeBuildJobRow(deploymentId, "dockerfile-build", true, 0);
+			await this.insertStructuredEvent(
+				deploymentId,
+				"dockerfile-build",
+				'Step "dockerfile-build" completed',
+			);
+			this.deps.logger.info({ deploymentId }, "Docker build completed");
+
+			// Step 3: Stop old long-lived container (best-effort)
+			await this.deps.runner.stopByName(containerName);
+
+			// Step 4: Start new long-lived container
+			await this.createBuildJobRow(deploymentId, "start");
+
+			await this.deps.runner.runLongLived({
+				image: imageTag,
+				containerName,
+				port,
+				envVars: envMap,
+				labels: {
+					"shipyard.managed": "true",
+					"shipyard.type": "app",
+					"shipyard.app-id": app.id,
+					"shipyard.worker-id": this.deps.env.WORKER_ID,
+				},
+			});
+
+			await this.finalizeBuildJobRow(deploymentId, "start", true, 0);
+			await this.insertStructuredEvent(
+				deploymentId,
+				"start",
+				'Step "start" completed',
+			);
+			this.deps.logger.info(
+				{ containerName, port },
+				"Long-lived container started",
+			);
+
+			// Step 5: Activate deployment
+			await this.db
+				.update(apps)
+				.set({ activeDeploymentId: deploymentId })
+				.where(eq(apps.id, app.id));
+			this.deps.logger.info({ deploymentId }, "Deployment activated");
+
+			// Step 6: Update Caddy route with reverse proxy
+			try {
+				const results = await this.db
+					.select({ domain: domains.domain })
+					.from(domains)
+					.where(and(eq(domains.appId, app.id), eq(domains.isPrimary, true)));
+				const primaryDomain = Array.isArray(results) ? results[0] : undefined;
+
+				const domain =
+					primaryDomain?.domain ?? `${app.name}.${this.deps.env.BASE_DOMAIN}`;
+				await this.deps.upsertRoute(app.id, domain, userId, deploymentId, port);
+				this.deps.logger.info({ domain, port }, "Caddy proxy route updated");
+			} catch (err) {
+				this.deps.logger.warn(
+					{ err, deploymentId },
+					"Caddy route update failed — site may not be accessible until resolved",
+				);
+			}
+
+			await this.db
+				.update(deployments)
+				.set({ status: "success", finishedAt: new Date() })
+				.where(eq(deployments.id, deploymentId));
+			this.deps.logger.info({ deploymentId }, "Deployment succeeded");
+		} catch (err) {
+			this.deps.logger.error({ err, deploymentId }, "Dockerfile build failed");
+			await this.insertStructuredEvent(
+				deploymentId,
+				"system",
+				`Dockerfile build error: ${err instanceof Error ? err.message : "Unknown error"}`,
+			);
+			await this.db
+				.update(deployments)
+				.set({ status: "failed", finishedAt: new Date() })
+				.where(eq(deployments.id, deploymentId));
+		} finally {
+			if (buildContainerId) {
+				await this.deps.runner.remove(buildContainerId);
+				this.deps.logger.info(
+					{ containerId: buildContainerId.slice(0, 12) },
+					"Clone container removed",
 				);
 			}
 			fs.rmSync(workspacePath, { recursive: true, force: true });

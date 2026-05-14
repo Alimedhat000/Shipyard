@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -133,6 +134,134 @@ export class DockerRunner {
 		}
 
 		return container;
+	}
+
+	// -----------------------------------------------------------------------
+	// Dockerfile / long-lived container helpers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Builds a Docker image from a local context directory.
+	 *
+	 * Streams build output (the "docker build" progress lines) to the
+	 * onData callback for log capture.
+	 *
+	 * Internally spawns "docker build" rather than using dockerode's
+	 * buildImage (which requires a tar stream and the "tar" package).
+	 *
+	 * @param opts.contextDir - Directory containing the Dockerfile and build context
+	 * @param opts.dockerfile - Path to Dockerfile (absolute, inside contextDir)
+	 * @param opts.tag - Image tag (e.g. "shipyard-app-123:deploy-456")
+	 * @param opts.onData - Called with each build output chunk
+	 * @throws Error if docker build exits with non-zero code
+	 */
+	async buildImage(opts: {
+		contextDir: string;
+		dockerfile: string;
+		tag: string;
+		onData?: (chunk: string) => void;
+	}): Promise<void> {
+		const relDockerfile = path.relative(opts.contextDir, opts.dockerfile);
+
+		return new Promise<void>((resolve, reject) => {
+			const proc = spawn(
+				"docker",
+				["build", "-f", relDockerfile, "-t", opts.tag, opts.contextDir],
+				{
+					cwd: opts.contextDir,
+					stdio: ["ignore", "pipe", "pipe"],
+				},
+			);
+
+			let stderr = "";
+
+			proc.stdout?.on("data", (chunk: Buffer) => {
+				const text = chunk.toString();
+				opts.onData?.(text);
+			});
+
+			proc.stderr?.on("data", (chunk: Buffer) => {
+				const text = chunk.toString();
+				stderr += text;
+				opts.onData?.(text);
+			});
+
+			proc.on("close", (code) => {
+				if (code === 0) {
+					resolve();
+				} else {
+					reject(
+						new Error(
+							`docker build exited with code ${code}: ${stderr.slice(0, 500)}`,
+						),
+					);
+				}
+			});
+
+			proc.on("error", reject);
+		});
+	}
+
+	/**
+	 * Creates and starts a long-lived container (for dockerfile / dockerimage
+	 * build packs). Unlike create(), this does NOT use "sleep infinity" —
+	 * the container runs whatever CMD/ENTRYPOINT the image defines.
+	 *
+	 * Container is auto-restarted on crash (restart policy: unless-stopped)
+	 * and the configured port is mapped to the same port on the host.
+	 *
+	 * @param opts.image - Docker image to run (already built or pulled)
+	 * @param opts.containerName - Name assigned to the container
+	 * @param opts.port - Container port to expose and map
+	 * @param opts.envVars - Environment variables passed via -e
+	 * @param opts.labels - Docker labels for container tracking
+	 * @returns The started Docker container
+	 */
+	async runLongLived(opts: {
+		image: string;
+		containerName: string;
+		port: number;
+		envVars: Record<string, string>;
+		labels: Record<string, string>;
+	}) {
+		const container = await this.docker.createContainer({
+			name: opts.containerName,
+			Image: opts.image,
+			ExposedPorts: { [`${opts.port}/tcp`]: {} },
+			HostConfig: {
+				PortBindings: {
+					[`${opts.port}/tcp`]: [{ HostPort: String(opts.port) }],
+				},
+				RestartPolicy: { Name: "unless-stopped" },
+			},
+			Env: Object.entries(opts.envVars).map(([k, v]) => `${k}=${v}`),
+			Labels: opts.labels,
+		});
+
+		await container.start();
+		return container;
+	}
+
+	/**
+	 * Stops and removes a container by name.
+	 *
+	 * Best-effort — if no container with this name exists, it's a no-op.
+	 * Errors are logged but not thrown (cleanup).
+	 *
+	 * @param containerName - Name of the container to stop and remove
+	 */
+	async stopByName(containerName: string) {
+		try {
+			const container = this.docker.getContainer(containerName);
+			await container.stop({ t: 5 });
+			await container.remove({ force: true });
+		} catch (err) {
+			// Container doesn't exist or already stopped — that's fine
+			logger.warn(
+				{ err, containerName },
+				`Failed to stop/remove container by name`,
+			);
+		}
 	}
 
 	/**
