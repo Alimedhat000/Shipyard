@@ -71,6 +71,7 @@ function makeDeps(selectResults?: unknown[][]) {
 			ENCRYPTION_KEY:
 				"ded637fc26820406b811e228d84a0c26dc8b561d6d7fea7ecd0d980b2544cc61",
 			WORKER_ID: "worker-test",
+			DOCKER_NETWORK: "shipyard",
 			CADDY_ADMIN_URL: "http://caddy:2019",
 			AUTO_HTTPS: false,
 			LOG_TO_FILE: false,

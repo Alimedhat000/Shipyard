@@ -50,6 +50,6 @@ describe("buildReverseProxyRouteConfig", () => {
 		expect(route.handle).toHaveLength(1);
 		const handler = route.handle[0] as Record<string, unknown>;
 		expect(handler.handler).toBe("reverse_proxy");
-		expect(handler.upstreams).toEqual([{ dial: "localhost:3000" }]);
+		expect(handler.upstreams).toEqual([{ dial: "shipyard-app-app-1:3000" }]);
 	});
 });

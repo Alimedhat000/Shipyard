@@ -208,8 +208,8 @@ export async function deployDockerfile(
 			const primaryDomain = Array.isArray(results) ? results[0] : undefined;
 
 			const domain = primaryDomain?.domain ?? `${app.name}.${env.BASE_DOMAIN}`;
-			await upsertProxyRoute(app.id, domain, hostPort);
-			logger.info({ domain, hostPort }, "Caddy proxy route updated");
+			await upsertProxyRoute(app.id, domain, port);
+			logger.info({ domain, port, hostPort }, "Caddy proxy route updated");
 		} catch (err) {
 			logger.warn(
 				{ err, deploymentId },

@@ -12,6 +12,7 @@ const envSchema = z.object({
 		.enum(["development", "production", "test"])
 		.default("development"),
 	DOCKER_HOST: z.string().optional(),
+	DOCKER_NETWORK: z.string().default("shipyard"),
 	BUILD_WORKSPACE_DIR: z.string().default("/var/lib/shipyard/builds"),
 	SITES_DIR: z.string().default("/var/lib/shipyard/sites"),
 	WORKER_ID: z.string().default(`worker-${hostname()}`),

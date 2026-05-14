@@ -81,12 +81,44 @@ function resolveDocker(): Docker {
  */
 export class DockerRunner {
 	private docker: Docker;
+	private resolvedNetwork: string | null = null;
 
 	/**
 	 * @param docker - Optional pre-configured Docker client. Omit to auto-detect socket.
 	 */
 	constructor(docker?: Docker) {
 		this.docker = docker ?? resolveDocker();
+	}
+
+	/**
+	 * Detects the Docker network the worker container is attached to.
+	 *
+	 * Inspects the current container (via hostname) and returns the first
+	 * network found. This handles Docker Compose project name prefixes
+	 * (e.g. "coolify_clone_shipyard" instead of just "shipyard").
+	 *
+	 * Falls back to "bridge" if detection fails.
+	 */
+	private async detectNetwork(): Promise<string> {
+		if (this.resolvedNetwork) return this.resolvedNetwork;
+		try {
+			const hostname = os.hostname();
+			const container = this.docker.getContainer(hostname);
+			const info = await container.inspect();
+			const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
+			if (networks.length > 0) {
+				this.resolvedNetwork = networks[0];
+				logger.debug(
+					{ network: this.resolvedNetwork },
+					"Detected worker network",
+				);
+				return this.resolvedNetwork;
+			}
+		} catch {
+			// Not running inside a container — use fallback
+		}
+		this.resolvedNetwork = "bridge";
+		return this.resolvedNetwork;
 	}
 
 	/**
@@ -288,6 +320,8 @@ export class DockerRunner {
 		envVars: Record<string, string>;
 		labels: Record<string, string>;
 	}): Promise<number> {
+		const network = await this.detectNetwork();
+
 		const container = await this.docker.createContainer({
 			name: opts.containerName,
 			Image: opts.image,
@@ -300,6 +334,11 @@ export class DockerRunner {
 			},
 			Env: Object.entries(opts.envVars).map(([k, v]) => `${k}=${v}`),
 			Labels: opts.labels,
+			NetworkingConfig: {
+				EndpointsConfig: {
+					[network]: {},
+				},
+			},
 		});
 
 		await container.start();
@@ -326,16 +365,27 @@ export class DockerRunner {
 	 * @param containerName - Name of the container to stop and remove
 	 */
 	async stopByName(containerName: string) {
+		const container = this.docker.getContainer(containerName);
+
 		try {
-			const container = this.docker.getContainer(containerName);
 			await container.stop({ t: 5 });
+		} catch (err: unknown) {
+			const statusCode = (err as Record<string, unknown>)?.statusCode;
+			if (statusCode !== 304) {
+				logger.warn({ err, containerName }, "Failed to stop container by name");
+			}
+		}
+
+		try {
 			await container.remove({ force: true });
-		} catch (err) {
-			// Container doesn't exist or already stopped — that's fine
-			logger.warn(
-				{ err, containerName },
-				`Failed to stop/remove container by name`,
-			);
+		} catch (err: unknown) {
+			const statusCode = (err as Record<string, unknown>)?.statusCode;
+			if (statusCode !== 404) {
+				logger.warn(
+					{ err, containerName },
+					"Failed to remove container by name",
+				);
+			}
 		}
 	}
 

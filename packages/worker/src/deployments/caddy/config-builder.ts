@@ -70,7 +70,7 @@ export function buildReverseProxyRouteConfig(
 		handle: [
 			{
 				handler: "reverse_proxy",
-				upstreams: [{ dial: `localhost:${port}` }],
+				upstreams: [{ dial: `shipyard-app-${appId}:${port}` }],
 			},
 		],
 		terminal: true,
