@@ -19,15 +19,14 @@ async function runLongLivedWithRetry(
 	opts: {
 		image: string;
 		containerName: string;
-		port: number;
+		containerPort: number;
 		envVars: Record<string, string>;
 		labels: Record<string, string>;
 	},
-): Promise<void> {
+): Promise<number> {
 	for (let attempt = 1; ; attempt++) {
 		try {
-			await runner.runLongLived(opts);
-			return;
+			return await runner.runLongLived(opts);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : "";
 			if (
@@ -168,10 +167,10 @@ export async function deployDockerfile(
 		// Step 4: Start new long-lived container with retry on port conflict
 		await createBuildJobRow(db, deploymentId, "start");
 
-		await runLongLivedWithRetry(runner, {
+		const hostPort = await runLongLivedWithRetry(runner, {
 			image: imageTag,
 			containerName,
-			port,
+			containerPort: port,
 			envVars: envMap,
 			labels: {
 				"shipyard.managed": "true",
@@ -188,7 +187,10 @@ export async function deployDockerfile(
 			"start",
 			'Step "start" completed',
 		);
-		logger.info({ containerName, port }, "Long-lived container started");
+		logger.info(
+			{ containerName, containerPort: port, hostPort },
+			"Long-lived container started",
+		);
 
 		// Step 5: Activate deployment
 		await db
@@ -206,8 +208,8 @@ export async function deployDockerfile(
 			const primaryDomain = Array.isArray(results) ? results[0] : undefined;
 
 			const domain = primaryDomain?.domain ?? `${app.name}.${env.BASE_DOMAIN}`;
-			await upsertProxyRoute(app.id, domain, port);
-			logger.info({ domain, port }, "Caddy proxy route updated");
+			await upsertProxyRoute(app.id, domain, hostPort);
+			logger.info({ domain, hostPort }, "Caddy proxy route updated");
 		} catch (err) {
 			logger.warn(
 				{ err, deploymentId },

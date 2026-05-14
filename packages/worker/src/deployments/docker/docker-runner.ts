@@ -284,17 +284,17 @@ export class DockerRunner {
 	async runLongLived(opts: {
 		image: string;
 		containerName: string;
-		port: number;
+		containerPort: number;
 		envVars: Record<string, string>;
 		labels: Record<string, string>;
-	}) {
+	}): Promise<number> {
 		const container = await this.docker.createContainer({
 			name: opts.containerName,
 			Image: opts.image,
-			ExposedPorts: { [`${opts.port}/tcp`]: {} },
+			ExposedPorts: { [`${opts.containerPort}/tcp`]: {} },
 			HostConfig: {
 				PortBindings: {
-					[`${opts.port}/tcp`]: [{ HostPort: String(opts.port) }],
+					[`${opts.containerPort}/tcp`]: [{}],
 				},
 				RestartPolicy: { Name: "unless-stopped" },
 			},
@@ -303,7 +303,18 @@ export class DockerRunner {
 		});
 
 		await container.start();
-		return container;
+
+		const info = await container.inspect();
+		const portKey = `${opts.containerPort}/tcp`;
+		const hostPort = info.NetworkSettings?.Ports?.[portKey]?.[0]?.HostPort;
+
+		if (!hostPort) {
+			throw new Error(
+				`Failed to get mapped host port for container port ${opts.containerPort}`,
+			);
+		}
+
+		return Number(hostPort);
 	}
 
 	/**

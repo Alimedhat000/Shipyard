@@ -58,7 +58,7 @@ function makeDeps(selectResults?: unknown[][]) {
 		listManaged: vi.fn().mockResolvedValue([]),
 		inspect: vi.fn().mockResolvedValue({}),
 		buildImage: vi.fn().mockResolvedValue(undefined),
-		runLongLived: vi.fn().mockResolvedValue({ id: "long-lived-1" }),
+		runLongLived: vi.fn().mockResolvedValue(43210),
 		stopByName: vi.fn().mockResolvedValue(undefined),
 		runOnce: vi.fn().mockResolvedValue(0),
 	};
@@ -145,7 +145,7 @@ describe("Dockerfile build pack", () => {
 		expect(deps.upsertProxyRoute).toHaveBeenCalledWith(
 			"app-df-1",
 			"myapp-dockerfile.bigboss.dev",
-			3000,
+			43210,
 		);
 		expect(deps.upsertFileRoute).not.toHaveBeenCalled();
 	});
