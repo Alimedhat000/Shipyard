@@ -149,7 +149,7 @@ export async function deployDockerfile(
 				dockerfile: absDockerfile,
 				tag: imageTag,
 			});
-			await finalizeBuildJobRow(db, deploymentId, "dockerfile-build", true, 0);
+			await finalizeBuildJobRow(db, deploymentId, "dockerfile-build", true, 1);
 		} catch (err) {
 			await finalizeBuildJobRow(db, deploymentId, "dockerfile-build", false, 0);
 			throw err;
@@ -185,7 +185,7 @@ export async function deployDockerfile(
 					"shipyard.worker-id": env.WORKER_ID,
 				},
 			});
-			await finalizeBuildJobRow(db, deploymentId, "start", true, 0);
+			await finalizeBuildJobRow(db, deploymentId, "start", true, 1);
 		} catch (err) {
 			await finalizeBuildJobRow(db, deploymentId, "start", false, 0);
 			throw err;
