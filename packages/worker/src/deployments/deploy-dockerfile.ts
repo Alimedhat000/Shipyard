@@ -61,7 +61,7 @@ export async function deployDockerfile(
 		const envMap = await fetchDecryptedEnvVars(db, env, app.id);
 
 		const buildContainer = await runner.create({
-			image: "alpine/git",
+			image: "node:20-bookworm-slim",
 			memory: TWO_GB,
 			timeout: 0,
 			workspaceHost: workspacePath,
