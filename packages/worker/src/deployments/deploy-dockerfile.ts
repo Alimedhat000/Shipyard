@@ -143,13 +143,17 @@ export async function deployDockerfile(
 		const repoDir = path.join(workspacePath, "repo");
 		const absDockerfile = path.resolve(repoDir, dockerfilePath);
 
-		await runner.buildImage({
-			contextDir: repoDir,
-			dockerfile: absDockerfile,
-			tag: imageTag,
-		});
-
-		await finalizeBuildJobRow(db, deploymentId, "dockerfile-build", true, 0);
+		try {
+			await runner.buildImage({
+				contextDir: repoDir,
+				dockerfile: absDockerfile,
+				tag: imageTag,
+			});
+			await finalizeBuildJobRow(db, deploymentId, "dockerfile-build", true, 0);
+		} catch (err) {
+			await finalizeBuildJobRow(db, deploymentId, "dockerfile-build", false, 0);
+			throw err;
+		}
 		await insertStructuredEvent(
 			db,
 			deploymentId,
@@ -167,20 +171,25 @@ export async function deployDockerfile(
 		// Step 4: Start new long-lived container with retry on port conflict
 		await createBuildJobRow(db, deploymentId, "start");
 
-		const hostPort = await runLongLivedWithRetry(runner, {
-			image: imageTag,
-			containerName,
-			containerPort: port,
-			envVars: envMap,
-			labels: {
-				"shipyard.managed": "true",
-				"shipyard.type": "app",
-				"shipyard.app-id": app.id,
-				"shipyard.worker-id": env.WORKER_ID,
-			},
-		});
-
-		await finalizeBuildJobRow(db, deploymentId, "start", true, 0);
+		let hostPort: number;
+		try {
+			hostPort = await runLongLivedWithRetry(runner, {
+				image: imageTag,
+				containerName,
+				containerPort: port,
+				envVars: envMap,
+				labels: {
+					"shipyard.managed": "true",
+					"shipyard.type": "app",
+					"shipyard.app-id": app.id,
+					"shipyard.worker-id": env.WORKER_ID,
+				},
+			});
+			await finalizeBuildJobRow(db, deploymentId, "start", true, 0);
+		} catch (err) {
+			await finalizeBuildJobRow(db, deploymentId, "start", false, 0);
+			throw err;
+		}
 		await insertStructuredEvent(
 			db,
 			deploymentId,

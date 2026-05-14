@@ -161,7 +161,13 @@ export async function deployBuildPack(
 				);
 				logger.info({ deploymentId, step: step.name }, "Step started");
 
-				const result = await step.run();
+				let result: StepResult;
+				try {
+					result = await step.run();
+				} catch (err) {
+					await finalizeBuildJobRow(db, deploymentId, step.name, false, 0);
+					throw err;
+				}
 
 				await finalizeBuildJobRow(
 					db,
