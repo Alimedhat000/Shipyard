@@ -90,10 +90,100 @@ export class DockerRunner {
 	}
 
 	/**
+	 * Ensures a Docker image is available locally — pulls if missing.
+	 *
+	 * Uses dockerode's callback-based pull with followProgress to
+	 * guarantee the pull completes before resolving. Logs clearly on
+	 * both pull and cache-hit paths so missing-image errors are
+	 * distinguishable from container errors.
+	 *
+	 * @param image - Full image reference (e.g. "node:20-bookworm-slim")
+	 * @throws Error if the image cannot be found in any registry
+	 */
+	async ensureImage(image: string): Promise<void> {
+		try {
+			await this.docker.getImage(image).inspect();
+			logger.debug({ image }, "Image already cached locally");
+			return;
+		} catch {
+			// Not present locally — pull it
+		}
+
+		return new Promise<void>((resolve, reject) => {
+			logger.info({ image }, "Pulling missing image");
+
+			this.docker.pull(image, (err: Error, stream: NodeJS.ReadableStream) => {
+				if (err) {
+					reject(new Error(`Failed to pull image '${image}': ${err.message}`));
+					return;
+				}
+
+				this.docker.modem.followProgress(stream, (err) => {
+					if (err) {
+						reject(
+							new Error(`Failed to pull image '${image}': ${err.message}`),
+						);
+					} else {
+						logger.info({ image }, "Image pulled successfully");
+						resolve();
+					}
+				});
+			});
+		});
+	}
+
+	/**
+	 * Runs a single command in a fresh container and waits for it to finish.
+	 *
+	 * Container is created, started, waited on, then removed — fire-and-forget.
+	 * Use this for one-shot steps (clone, copy) where you don't need
+	 * a persistent build environment across multiple exec calls.
+	 *
+	 * The image entrypoint is cleared so that opts.cmd runs directly.
+	 *
+	 * @param opts.image - Docker image (e.g. "alpine/git")
+	 * @param opts.cmd - Command to run (e.g. ["git", "clone", ...])
+	 * @param opts.binds - Host-to-container bind mounts (e.g. ["/host:/container"])
+	 * @param opts.env - Environment variables passed via -e
+	 * @returns The exit code from the container
+	 */
+	async runOnce(opts: {
+		image: string;
+		cmd: string[];
+		binds: string[];
+		env: Record<string, string>;
+	}): Promise<number> {
+		await this.ensureImage(opts.image);
+		logger.debug(
+			{ image: opts.image, cmd: opts.cmd },
+			"runOnce: creating container",
+		);
+
+		const container = await this.docker.createContainer({
+			Image: opts.image,
+			Cmd: opts.cmd,
+			Entrypoint: [""],
+			HostConfig: { Binds: opts.binds },
+			Env: Object.entries(opts.env).map(([k, v]) => `${k}=${v}`),
+		});
+
+		await container.start();
+		const result = await container.wait();
+		await container.remove().catch(() => {});
+
+		logger.debug(
+			{ image: opts.image, exitCode: result.StatusCode },
+			"runOnce: container finished",
+		);
+		return result.StatusCode;
+	}
+
+	/**
 	 * Creates and starts a build container.
 	 *
 	 * Container stays alive with `sleep infinity` so multiple exec calls
 	 * can reuse the same filesystem, node_modules, and caches.
+	 * Image is ensured locally before creation via ensureImage().
 	 *
 	 * @param opts.image - Docker image (e.g. "node:18-bullseye")
 	 * @param opts.memory - Memory limit in bytes
@@ -105,14 +195,7 @@ export class DockerRunner {
 	 * @returns The started Docker container
 	 */
 	async create(opts: CreateContainerOptions) {
-		try {
-			await this.docker.pull(opts.image);
-		} catch (err) {
-			logger.warn(
-				{ err, image: opts.image },
-				"Image pull failed, trying to use local",
-			);
-		}
+		await this.ensureImage(opts.image);
 		const container = await this.docker.createContainer({
 			Image: opts.image,
 			Cmd: ["sleep", "infinity"],
@@ -143,11 +226,9 @@ export class DockerRunner {
 	/**
 	 * Builds a Docker image from a local context directory.
 	 *
-	 * Streams build output (the "docker build" progress lines) to the
-	 * onData callback for log capture.
-	 *
-	 * Internally spawns "docker build" rather than using dockerode's
-	 * buildImage (which requires a tar stream and the "tar" package).
+	 * Uses dockerode's buildImage with a tar stream piped from the
+	 * host "tar" command (available in virtually every Linux environment).
+	 * Build progress is streamed to the onData callback via followProgress.
 	 *
 	 * @param opts.contextDir - Directory containing the Dockerfile and build context
 	 * @param opts.dockerfile - Path to Dockerfile (absolute, inside contextDir)
@@ -163,42 +244,25 @@ export class DockerRunner {
 	}): Promise<void> {
 		const relDockerfile = path.relative(opts.contextDir, opts.dockerfile);
 
+		const tarProc = spawn("tar", ["cf", "-", "-C", opts.contextDir, "."], {
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+
+		const buildStream = await this.docker.buildImage(tarProc.stdout!, {
+			dockerfile: relDockerfile,
+			t: opts.tag,
+		});
+
 		return new Promise<void>((resolve, reject) => {
-			const proc = spawn(
-				"docker",
-				["build", "-f", relDockerfile, "-t", opts.tag, opts.contextDir],
-				{
-					cwd: opts.contextDir,
-					stdio: ["ignore", "pipe", "pipe"],
-				},
-			);
-
-			let stderr = "";
-
-			proc.stdout?.on("data", (chunk: Buffer) => {
+			buildStream.on("data", (chunk: Buffer) => {
 				const text = chunk.toString();
 				opts.onData?.(text);
 			});
 
-			proc.stderr?.on("data", (chunk: Buffer) => {
-				const text = chunk.toString();
-				stderr += text;
-				opts.onData?.(text);
+			this.docker.modem.followProgress(buildStream, (err: Error | null) => {
+				if (err) reject(err);
+				else resolve();
 			});
-
-			proc.on("close", (code) => {
-				if (code === 0) {
-					resolve();
-				} else {
-					reject(
-						new Error(
-							`docker build exited with code ${code}: ${stderr.slice(0, 500)}`,
-						),
-					);
-				}
-			});
-
-			proc.on("error", reject);
 		});
 	}
 

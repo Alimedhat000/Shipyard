@@ -3,16 +3,46 @@ import path from "node:path";
 import { apps, deployments, domains } from "@shipyard/shared";
 import { and, eq } from "drizzle-orm";
 import type { DockerRunner } from "./docker/docker-runner.js";
-import { LogBuffer } from "./logs/log-buffer.js";
 import {
 	createBuildJobRow,
 	createWorkspace,
 	fetchDecryptedEnvVars,
 	finalizeBuildJobRow,
 	insertStructuredEvent,
-	TWO_GB,
 } from "./shared.js";
-import { runCloneStep } from "./steps/clone-step.js";
+
+const PORT_CONFLICT_RETRIES = 3;
+const PORT_CONFLICT_BACKOFF_MS = 2000;
+
+async function runLongLivedWithRetry(
+	runner: DockerRunner,
+	opts: {
+		image: string;
+		containerName: string;
+		port: number;
+		envVars: Record<string, string>;
+		labels: Record<string, string>;
+	},
+): Promise<void> {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await runner.runLongLived(opts);
+			return;
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : "";
+			if (
+				msg.includes("port is already allocated") &&
+				attempt < PORT_CONFLICT_RETRIES
+			) {
+				await new Promise((r) =>
+					setTimeout(r, PORT_CONFLICT_BACKOFF_MS * attempt),
+				);
+				continue;
+			}
+			throw err;
+		}
+	}
+}
 
 export async function deployDockerfile(
 	deploymentId: string,
@@ -55,30 +85,9 @@ export async function deployDockerfile(
 	const containerName = `shipyard-app-${app.id}`;
 	const port = app.port ?? 80;
 	const dockerfilePath = app.dockerfilePath ?? "./Dockerfile";
-	let buildContainerId: string | undefined;
 
 	try {
 		const envMap = await fetchDecryptedEnvVars(db, env, app.id);
-
-		const buildContainer = await runner.create({
-			image: "node:20-bookworm-slim",
-			memory: TWO_GB,
-			timeout: 0,
-			workspaceHost: workspacePath,
-			workspaceContainer: "/workspace",
-			labels: {
-				"shipyard.managed": "true",
-				"shipyard.type": "build",
-				"shipyard.deployment-id": deploymentId,
-				"shipyard.worker-id": env.WORKER_ID,
-			},
-			envVars: {},
-		});
-		buildContainerId = buildContainer.id;
-		logger.info(
-			{ deploymentId, containerId: buildContainerId.slice(0, 12) },
-			"Clone container created",
-		);
 
 		await db
 			.update(deployments)
@@ -95,38 +104,29 @@ export async function deployDockerfile(
 		);
 		logger.info({ deploymentId }, "Clone step started");
 
-		const cloneLog = new LogBuffer(deploymentId, "clone");
-		const cloneResult = await runCloneStep(
-			runner,
-			buildContainerId,
-			app as any,
-			githubAccessToken,
-			cloneLog,
-		).finally(() => cloneLog.flushOnStepEnd());
+		const repoUrl = `https://${githubAccessToken}@github.com/${app.githubRepo}.git`;
+		const exitCode = await runner.runOnce({
+			image: "alpine/git",
+			cmd: ["git", "clone", "--depth", "1", repoUrl, "/workspace/repo"],
+			binds: [`${workspacePath}:/workspace`],
+			env: {},
+		});
 
-		await finalizeBuildJobRow(
-			db,
-			deploymentId,
-			"clone",
-			cloneResult.ok,
-			cloneResult.attempts || 0,
-		);
+		const cloneOk = exitCode === 0;
+		await finalizeBuildJobRow(db, deploymentId, "clone", cloneOk, 1);
 
-		if (!cloneResult.ok) {
+		if (!cloneOk) {
 			await insertStructuredEvent(
 				db,
 				deploymentId,
 				"clone",
-				`Step "clone" failed: ${cloneResult.error?.message}`,
+				`Git clone failed with exit code ${exitCode}`,
 			);
 			await db
 				.update(deployments)
 				.set({ status: "failed", finishedAt: new Date() })
 				.where(eq(deployments.id, deploymentId));
-			logger.warn(
-				{ deploymentId, error: cloneResult.error?.message },
-				"Clone step failed",
-			);
+			logger.warn({ deploymentId, exitCode }, "Clone step failed");
 			return;
 		}
 
@@ -162,10 +162,13 @@ export async function deployDockerfile(
 		// Step 3: Stop old long-lived container (best-effort)
 		await runner.stopByName(containerName);
 
-		// Step 4: Start new long-lived container
+		// Port release from the old container isn't instant — wait briefly
+		await new Promise((r) => setTimeout(r, 2000));
+
+		// Step 4: Start new long-lived container with retry on port conflict
 		await createBuildJobRow(db, deploymentId, "start");
 
-		await runner.runLongLived({
+		await runLongLivedWithRetry(runner, {
 			image: imageTag,
 			containerName,
 			port,
@@ -230,13 +233,6 @@ export async function deployDockerfile(
 			.set({ status: "failed", finishedAt: new Date() })
 			.where(eq(deployments.id, deploymentId));
 	} finally {
-		if (buildContainerId) {
-			await runner.remove(buildContainerId);
-			logger.info(
-				{ containerId: buildContainerId.slice(0, 12) },
-				"Clone container removed",
-			);
-		}
 		fs.rmSync(workspacePath, { recursive: true, force: true });
 		logger.info({ workspacePath }, "Workspace cleaned up");
 	}

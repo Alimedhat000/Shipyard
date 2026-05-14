@@ -60,6 +60,7 @@ function makeDeps(selectResults?: unknown[][]) {
 		buildImage: vi.fn().mockResolvedValue(undefined),
 		runLongLived: vi.fn().mockResolvedValue({ id: "long-lived-1" }),
 		stopByName: vi.fn().mockResolvedValue(undefined),
+		runOnce: vi.fn().mockResolvedValue(0),
 	};
 
 	const upsertFileRoute = vi.fn().mockResolvedValue(undefined);
@@ -132,7 +133,10 @@ describe("Dockerfile build pack", () => {
 
 		await orchestrator.process("deploy-df-1");
 
-		expect(deps.runner.create).toHaveBeenCalledTimes(1);
+		expect(deps.runner.runOnce).toHaveBeenCalledTimes(1);
+		expect(deps.runner.runOnce).toHaveBeenCalledWith(
+			expect.objectContaining({ image: "alpine/git" }),
+		);
 		expect(deps.runner.buildImage).toHaveBeenCalledTimes(1);
 		expect(deps.runner.stopByName).toHaveBeenCalledWith(
 			"shipyard-app-app-df-1",
@@ -163,12 +167,7 @@ describe("Dockerfile build pack", () => {
 	it("marks deployment as failed when clone step fails", async () => {
 		setupRepo("deploy-df-3");
 		const deps = makeDeps([makeDockerfileAppContext(), [], []]);
-		(deps.runner as any).exec = vi.fn().mockResolvedValue({
-			exitCode: 128,
-			oomKilled: false,
-			stdout: "",
-			stderr: "Permission denied",
-		});
+		deps.runner.runOnce = vi.fn().mockResolvedValue(128);
 		const orchestrator = new DeploymentOrchestrator(deps);
 
 		await orchestrator.process("deploy-df-3");
@@ -221,7 +220,7 @@ describe("Dockerfile build pack", () => {
 
 		await orchestrator.process("deploy-df-5");
 
-		expect(deps.runner.create).not.toHaveBeenCalled();
+		expect(deps.runner.runOnce).not.toHaveBeenCalled();
 		expect(deps.runner.buildImage).not.toHaveBeenCalled();
 		expect(deps.runner.runLongLived).not.toHaveBeenCalled();
 	});
