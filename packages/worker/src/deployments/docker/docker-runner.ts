@@ -258,9 +258,12 @@ export class DockerRunner {
 	/**
 	 * Builds a Docker image from a local context directory.
 	 *
-	 * Uses dockerode's buildImage with a tar stream piped from the
-	 * host "tar" command (available in virtually every Linux environment).
-	 * Build progress is streamed to the onData callback via followProgress.
+	 * Uses `docker build` via the host CLI, which is installed in the
+	 * worker image. This is preferred over dockerode's buildImage
+	 * because the CLI handles:
+	 * - .dockerignore natively
+	 * - progress output as plain text (loggable)
+	 * - flags like --build-arg, --target, --platform
 	 *
 	 * @param opts.contextDir - Directory containing the Dockerfile and build context
 	 * @param opts.dockerfile - Path to Dockerfile (absolute, inside contextDir)
@@ -276,25 +279,42 @@ export class DockerRunner {
 	}): Promise<void> {
 		const relDockerfile = path.relative(opts.contextDir, opts.dockerfile);
 
-		const tarProc = spawn("tar", ["cf", "-", "-C", opts.contextDir, "."], {
-			stdio: ["ignore", "pipe", "ignore"],
-		});
-
-		const buildStream = await this.docker.buildImage(tarProc.stdout!, {
-			dockerfile: relDockerfile,
-			t: opts.tag,
-		});
-
 		return new Promise<void>((resolve, reject) => {
-			buildStream.on("data", (chunk: Buffer) => {
+			const proc = spawn(
+				"docker",
+				["build", "-f", relDockerfile, "-t", opts.tag, opts.contextDir],
+				{
+					cwd: opts.contextDir,
+					stdio: ["ignore", "pipe", "pipe"],
+				},
+			);
+
+			let stderr = "";
+
+			proc.stdout?.on("data", (chunk: Buffer) => {
 				const text = chunk.toString();
 				opts.onData?.(text);
 			});
 
-			this.docker.modem.followProgress(buildStream, (err: Error | null) => {
-				if (err) reject(err);
-				else resolve();
+			proc.stderr?.on("data", (chunk: Buffer) => {
+				const text = chunk.toString();
+				stderr += text;
+				opts.onData?.(text);
 			});
+
+			proc.on("close", (code) => {
+				if (code === 0) {
+					resolve();
+				} else {
+					reject(
+						new Error(
+							`docker build exited with code ${code}: ${stderr.slice(0, 500)}`,
+						),
+					);
+				}
+			});
+
+			proc.on("error", reject);
 		});
 	}
 
