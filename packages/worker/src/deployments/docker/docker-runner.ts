@@ -435,8 +435,11 @@ export class DockerRunner {
 						try {
 							await this.docker.getImage(tag).remove();
 							logger.debug({ tag }, "Pruned old image tag");
-						} catch {
-							// 404 = already removed by concurrent prune
+						} catch (err: unknown) {
+							const statusCode = (err as Record<string, unknown>)?.statusCode;
+							if (statusCode !== 404) {
+								logger.warn({ err, tag }, "Failed to prune image tag");
+							}
 						}
 					}
 				}
