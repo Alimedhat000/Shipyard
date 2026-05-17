@@ -6,9 +6,9 @@ import {
 } from "@shipyard/shared";
 import { asc, eq } from "drizzle-orm";
 import type { Env } from "../config/env.js";
-import { deployDockerfile } from "./deploy-dockerfile.js";
-import { deployBuildPack } from "./deploy-static.js";
-import type { DockerRunner } from "./docker/docker-runner.js";
+import type { DockerRunner } from "../infrastructure/docker/docker-runner.js";
+import { deployDockerfile } from "./strategies/dockerfile.js";
+import { deployBuildPack } from "./strategies/static.js";
 
 export interface OrchestratorDeps {
 	db: unknown;
@@ -34,8 +34,8 @@ export interface OrchestratorDeps {
 export class DeploymentOrchestrator {
 	constructor(private deps: OrchestratorDeps) {}
 
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
 	private get db() {
+		// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
 		return this.deps.db as any;
 	}
 

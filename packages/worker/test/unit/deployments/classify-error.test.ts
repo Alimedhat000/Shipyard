@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyError } from "../../src/deployments/errors/classify-error.js";
+import { classifyError } from "../../../src/deployments/errors/classify-error.js";
 
 describe("classifyError", () => {
 	describe("clone step", () => {

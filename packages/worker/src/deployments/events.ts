@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { buildJobs, decrypt, deploymentLogs, envVars } from "@shipyard/shared";
+import { buildJobs, deploymentLogs } from "@shipyard/shared";
 import { and, eq } from "drizzle-orm";
 import type { Env } from "../config/env.js";
 
@@ -10,32 +10,6 @@ export function createWorkspace(env: Env, deploymentId: string): string {
 	const ws = path.join(env.BUILD_WORKSPACE_DIR, deploymentId);
 	fs.mkdirSync(ws, { recursive: true });
 	return ws;
-}
-
-export async function fetchDecryptedEnvVars(
-	db: unknown,
-	env: Env,
-	appId: string,
-) {
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-	const rows = await (db as any)
-		.select()
-		.from(envVars)
-		.where(eq(envVars.appId, appId));
-
-	const masterKey = env.ENCRYPTION_KEY;
-	const result: Record<string, string> = {};
-
-	for (const row of rows as {
-		key: string;
-		value: string;
-		isSecret: boolean;
-	}[]) {
-		const val = row.isSecret ? decrypt(row.value, masterKey) : row.value;
-		result[row.key] = val;
-	}
-
-	return result;
 }
 
 export async function createBuildJobRow(

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	RetryExhaustedError,
 	withRetry,
-} from "../../src/deployments/utils/retry.js";
+} from "../../../src/infrastructure/retry.js";
 
 describe("withRetry", () => {
 	it("returns the result on first success", async () => {
@@ -33,7 +33,7 @@ describe("withRetry", () => {
 		await expect(
 			withRetry(fn, { maxRetries: 2, backoffs: [1, 1] }),
 		).rejects.toThrow(RetryExhaustedError);
-		expect(fn).toHaveBeenCalledTimes(3); // initial + 2 retries
+		expect(fn).toHaveBeenCalledTimes(3);
 	});
 
 	it("preserves the last error as cause in RetryExhaustedError", async () => {

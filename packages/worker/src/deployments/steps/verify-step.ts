@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getEnv } from "../../config/env.js";
-import type { LogBuffer } from "../logs/log-buffer.js";
+import type { LogBuffer } from "../../infrastructure/log-buffer.js";
 import type { StepResult } from "./clone-step.js";
 
 /** Filenames to exclude from output file count. */

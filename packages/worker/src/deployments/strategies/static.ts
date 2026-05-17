@@ -2,28 +2,28 @@ import fs from "node:fs";
 import path from "node:path";
 import { apps, deployments, domains } from "@shipyard/shared";
 import { and, eq } from "drizzle-orm";
-import type { DockerRunner } from "./docker/docker-runner.js";
-import { LogBuffer } from "./logs/log-buffer.js";
+import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
+import { LogBuffer } from "../../infrastructure/log-buffer.js";
+import { fetchDecryptedEnvVars } from "../env-vars.js";
 import {
 	createBuildJobRow,
 	createWorkspace,
-	fetchDecryptedEnvVars,
 	finalizeBuildJobRow,
 	insertStructuredEvent,
 	TWO_GB,
-} from "./shared.js";
-import { runBuildStep } from "./steps/build-step.js";
-import type { StepResult } from "./steps/clone-step.js";
-import { runCloneStep } from "./steps/clone-step.js";
-import { runCopyStep } from "./steps/copy-step.js";
-import { runInstallStep } from "./steps/install-step.js";
-import { runVerifyStep } from "./steps/verify-step.js";
+} from "../events.js";
+import { runBuildStep } from "../steps/build-step.js";
+import type { StepResult } from "../steps/clone-step.js";
+import { runCloneStep } from "../steps/clone-step.js";
+import { runCopyStep } from "../steps/copy-step.js";
+import { runInstallStep } from "../steps/install-step.js";
+import { runVerifyStep } from "../steps/verify-step.js";
 
 export async function deployBuildPack(
 	deploymentId: string,
 	// biome-ignore lint/suspicious/noExplicitAny: DB query result shape known at runtime
 	app: Record<string, any>,
-	userId: string,
+	_userId: string,
 	githubAccessToken: string | null,
 	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
 	db: any,
