@@ -2,7 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { buildJobs, deploymentLogs } from "@shipyard/shared";
 import { and, eq } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Env } from "../config/env.js";
+
+type DB = PostgresJsDatabase<Record<string, unknown>>;
 
 export const TWO_GB = 2 * 1024 * 1024 * 1024;
 
@@ -13,12 +16,11 @@ export function createWorkspace(env: Env, deploymentId: string): string {
 }
 
 export async function createBuildJobRow(
-	db: unknown,
+	db: DB,
 	deploymentId: string,
 	stepName: string,
 ) {
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-	await (db as any).insert(buildJobs).values({
+	await db.insert(buildJobs).values({
 		deploymentId,
 		step: stepName,
 		status: "running",
@@ -27,14 +29,13 @@ export async function createBuildJobRow(
 }
 
 export async function finalizeBuildJobRow(
-	db: unknown,
+	db: DB,
 	deploymentId: string,
 	stepName: string,
 	ok: boolean,
 	attempts: number,
 ) {
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-	await (db as any)
+	await db
 		.update(buildJobs)
 		.set({
 			status: ok ? "success" : "failed",
@@ -51,13 +52,10 @@ export async function finalizeBuildJobRow(
 }
 
 export async function insertStructuredEvent(
-	db: unknown,
+	db: DB,
 	deploymentId: string,
 	step: string,
 	content: string,
 ) {
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-	await (db as any)
-		.insert(deploymentLogs)
-		.values({ deploymentId, step, content });
+	await db.insert(deploymentLogs).values({ deploymentId, step, content });
 }

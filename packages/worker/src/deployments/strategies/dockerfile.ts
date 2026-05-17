@@ -1,9 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { apps, deployments, domains } from "@shipyard/shared";
+import type { App } from "@shipyard/shared/schema";
 import { and, eq } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { Env } from "../../config/env.js";
 import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
 import { fetchDecryptedEnvVars } from "../env-vars.js";
+
+type DB = PostgresJsDatabase<Record<string, unknown>>;
+
 import {
 	createBuildJobRow,
 	createWorkspace,
@@ -45,13 +51,10 @@ async function runLongLivedWithRetry(
 
 export async function deployDockerfile(
 	deploymentId: string,
-	// biome-ignore lint/suspicious/noExplicitAny: DB query result shape known at runtime
-	app: Record<string, any>,
+	app: App,
 	githubAccessToken: string | null,
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-	db: any,
-	// biome-ignore lint/suspicious/noExplicitAny: runtime shape matches Env
-	env: any,
+	db: DB,
+	env: Env,
 	logger: {
 		info: (obj: Record<string, unknown>, msg?: string) => void;
 		warn: (obj: Record<string, unknown>, msg?: string) => void;

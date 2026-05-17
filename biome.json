@@ -34,6 +34,18 @@
 			}
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["packages/worker/test/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		}
+	],
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"

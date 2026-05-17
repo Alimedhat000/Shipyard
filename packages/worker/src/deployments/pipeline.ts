@@ -4,14 +4,19 @@ import {
 	organizationMembers,
 	users,
 } from "@shipyard/shared";
+import type { App } from "@shipyard/shared/schema";
 import { asc, eq } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+
+type DB = PostgresJsDatabase<Record<string, unknown>>;
+
 import type { Env } from "../config/env.js";
 import type { DockerRunner } from "../infrastructure/docker/docker-runner.js";
 import { deployDockerfile } from "./strategies/dockerfile.js";
 import { deployBuildPack } from "./strategies/static.js";
 
 export interface OrchestratorDeps {
-	db: unknown;
+	db: DB;
 	env: Env;
 	logger: {
 		info: (obj: Record<string, unknown>, msg?: string) => void;
@@ -34,13 +39,8 @@ export interface OrchestratorDeps {
 export class DeploymentOrchestrator {
 	constructor(private deps: OrchestratorDeps) {}
 
-	private get db() {
-		// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-		return this.deps.db as any;
-	}
-
 	private async fetchDeploymentContext(deploymentId: string) {
-		const rows = await this.db
+		const rows = await this.deps.db
 			.select({
 				deployment: deployments,
 				app: apps,
@@ -65,8 +65,7 @@ export class DeploymentOrchestrator {
 
 	async process(deploymentId: string): Promise<void> {
 		const ctx = await this.fetchDeploymentContext(deploymentId);
-		// biome-ignore lint/suspicious/noExplicitAny: DB query result shape known at runtime
-		const app: Record<string, any> = ctx.app;
+		const app: App = ctx.app;
 		const userId: string = ctx.userId;
 		const githubAccessToken: string | null = ctx.githubAccessToken;
 
@@ -80,7 +79,7 @@ export class DeploymentOrchestrator {
 				deploymentId,
 				app,
 				githubAccessToken,
-				this.db,
+				this.deps.db,
 				this.deps.env,
 				this.deps.logger,
 				this.deps.runner,
@@ -94,7 +93,7 @@ export class DeploymentOrchestrator {
 			app,
 			userId,
 			githubAccessToken,
-			this.db,
+			this.deps.db,
 			this.deps.env,
 			this.deps.logger,
 			this.deps.runner,
