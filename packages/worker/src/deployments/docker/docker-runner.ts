@@ -410,6 +410,46 @@ export class DockerRunner {
 	}
 
 	/**
+	 * Prunes old Docker image tags for an app, keeping only the current one.
+	 *
+	 * Each dockerfile deploy creates a new tag (shipyard-{appId}:{deploymentId}).
+	 * Docker's layer cache means all tags point at the same image, but old tags
+	 * accumulate unboundedly. This removes all tags for an app except the one
+	 * just created.
+	 *
+	 * Best-effort — errors are logged but not thrown. Handles concurrent
+	 * prunes gracefully (404 = already removed by another worker).
+	 *
+	 * @param appId - App ID used in the tag prefix
+	 * @param keepTag - Full image reference to keep (e.g. "shipyard-abc:deploy-123")
+	 */
+	async pruneOldImageTags(appId: string, keepTag: string): Promise<void> {
+		try {
+			const images = await this.docker.listImages({
+				filters: { reference: [`shipyard-${appId}`] },
+			});
+
+			for (const img of images) {
+				for (const tag of img.RepoTags ?? []) {
+					if (tag.startsWith(`shipyard-${appId}:`) && tag !== keepTag) {
+						try {
+							await this.docker.getImage(tag).remove();
+							logger.debug({ tag }, "Pruned old image tag");
+						} catch (err: unknown) {
+							const statusCode = (err as Record<string, unknown>)?.statusCode;
+							if (statusCode !== 404) {
+								logger.warn({ err, tag }, "Failed to prune image tag");
+							}
+						}
+					}
+				}
+			}
+		} catch (err) {
+			logger.warn({ err, appId }, "Failed to list images for pruning");
+		}
+	}
+
+	/**
 	 * Runs a command inside a build container.
 	 *
 	 * Streams stdout/stderr to the onData callback (for log capture),

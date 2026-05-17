@@ -56,8 +56,9 @@ function makeDeps(selectResults?: unknown[][]) {
 		listManaged: vi.fn().mockResolvedValue([]),
 		inspect: vi.fn().mockResolvedValue({}),
 		buildImage: vi.fn().mockResolvedValue(undefined),
-		runLongLived: vi.fn().mockResolvedValue({ id: "long-lived-1" }),
+		runLongLived: vi.fn().mockResolvedValue(43210),
 		stopByName: vi.fn().mockResolvedValue(undefined),
+		pruneOldImageTags: vi.fn().mockResolvedValue(undefined),
 	};
 
 	const upsertFileRoute = vi.fn().mockResolvedValue(undefined);
