@@ -201,6 +201,9 @@ export async function deployDockerfile(
 			"Long-lived container started",
 		);
 
+		// Prune old image tags (best-effort)
+		await runner.pruneOldImageTags(app.id, imageTag);
+
 		// Step 5: Activate deployment
 		await db
 			.update(apps)
