@@ -1,10 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { apps, deployments, domains } from "@shipyard/shared";
+import type { App } from "@shipyard/shared/schema";
 import { and, eq } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { Env } from "../../config/env.js";
 import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
 import { LogBuffer } from "../../infrastructure/log-buffer.js";
 import { fetchDecryptedEnvVars } from "../env-vars.js";
+
+type DB = PostgresJsDatabase<Record<string, unknown>>;
+
 import {
 	createBuildJobRow,
 	createWorkspace,
@@ -21,14 +27,11 @@ import { runVerifyStep } from "../steps/verify-step.js";
 
 export async function deployBuildPack(
 	deploymentId: string,
-	// biome-ignore lint/suspicious/noExplicitAny: DB query result shape known at runtime
-	app: Record<string, any>,
+	app: App,
 	_userId: string,
 	githubAccessToken: string | null,
-	// biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder type too complex to abstract
-	db: any,
-	// biome-ignore lint/suspicious/noExplicitAny: runtime shape matches Env
-	env: any,
+	db: DB,
+	env: Env,
 	logger: {
 		info: (obj: Record<string, unknown>, msg?: string) => void;
 		warn: (obj: Record<string, unknown>, msg?: string) => void;
@@ -98,7 +101,7 @@ export async function deployBuildPack(
 					return runCloneStep(
 						runner,
 						containerId!,
-						app as any,
+						app,
 						githubAccessToken,
 						log,
 					).finally(() => log.flushOnStepEnd());
@@ -108,8 +111,8 @@ export async function deployBuildPack(
 				name: "install",
 				run: () => {
 					const log = new LogBuffer(deploymentId, "install");
-					return runInstallStep(runner, containerId!, app as any, log).finally(
-						() => log.flushOnStepEnd(),
+					return runInstallStep(runner, containerId!, app, log).finally(() =>
+						log.flushOnStepEnd(),
 					);
 				},
 			},
@@ -117,8 +120,8 @@ export async function deployBuildPack(
 				name: "build",
 				run: () => {
 					const log = new LogBuffer(deploymentId, "build");
-					return runBuildStep(runner, containerId!, app as any, log).finally(
-						() => log.flushOnStepEnd(),
+					return runBuildStep(runner, containerId!, app, log).finally(() =>
+						log.flushOnStepEnd(),
 					);
 				},
 			},
