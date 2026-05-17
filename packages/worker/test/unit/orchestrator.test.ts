@@ -55,9 +55,13 @@ function makeDeps(selectResults?: unknown[][]) {
 		stop: vi.fn().mockResolvedValue(undefined),
 		listManaged: vi.fn().mockResolvedValue([]),
 		inspect: vi.fn().mockResolvedValue({}),
+		buildImage: vi.fn().mockResolvedValue(undefined),
+		runLongLived: vi.fn().mockResolvedValue({ id: "long-lived-1" }),
+		stopByName: vi.fn().mockResolvedValue(undefined),
 	};
 
-	const upsertRoute = vi.fn().mockResolvedValue(undefined);
+	const upsertFileRoute = vi.fn().mockResolvedValue(undefined);
+	const upsertProxyRoute = vi.fn().mockResolvedValue(undefined);
 
 	return {
 		db: mockDb,
@@ -67,13 +71,15 @@ function makeDeps(selectResults?: unknown[][]) {
 			ENCRYPTION_KEY:
 				"ded637fc26820406b811e228d84a0c26dc8b561d6d7fea7ecd0d980b2544cc61",
 			WORKER_ID: "worker-test",
+			DOCKER_NETWORK: "shipyard",
 			CADDY_ADMIN_URL: "http://caddy:2019",
 			AUTO_HTTPS: false,
 			LOG_TO_FILE: false,
 		},
 		logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 		runner: mockRunner as any,
-		upsertRoute,
+		upsertFileRoute,
+		upsertProxyRoute,
 	} as OrchestratorDeps;
 }
 
@@ -123,11 +129,9 @@ describe("DeploymentOrchestrator", () => {
 
 		expect(deps.runner.create).toHaveBeenCalledTimes(1);
 		expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
-		expect(deps.upsertRoute).toHaveBeenCalledWith(
+		expect(deps.upsertFileRoute).toHaveBeenCalledWith(
 			"app-1",
 			"myapp.bigboss.dev",
-			"user-1",
-			"deploy-1",
 			false,
 		);
 	});
@@ -232,8 +236,9 @@ describe("DeploymentOrchestrator", () => {
 
 		// Container should still be cleaned up
 		expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
-		// Should NOT have called upsertRoute (deployment never activated)
-		expect(deps.upsertRoute).not.toHaveBeenCalled();
+		// Should NOT have called upsertFileRoute (deployment never activated)
+		expect(deps.upsertFileRoute).not.toHaveBeenCalled();
+		expect(deps.upsertProxyRoute).not.toHaveBeenCalled();
 		// Final status should be failed
 		const updates = (deps.db as any).update.mock.results;
 		const lastSet = updates[updates.length - 1].value.set;

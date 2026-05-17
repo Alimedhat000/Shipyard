@@ -16,7 +16,10 @@ import Redis from "ioredis";
 import { db } from "./config/db.js";
 import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
-import { upsertRoute } from "./deployments/caddy/client.js";
+import {
+	upsertFileRoute,
+	upsertProxyRoute,
+} from "./deployments/caddy/client.js";
 import { DockerRunner } from "./deployments/docker/docker-runner.js";
 import { processDeployment } from "./jobs/deploy.js";
 
@@ -48,14 +51,21 @@ async function reconcileCaddyRoutes(): Promise<number> {
 		const domain =
 			row.primaryDomain ??
 			`${(row.app as Record<string, unknown>).name}.${env.BASE_DOMAIN}`;
+		const app = row.app as Record<string, unknown>;
 		try {
-			await upsertRoute(
-				(row.app as Record<string, unknown>).id as string,
-				domain,
-				row.userId as string,
-				(row.app as Record<string, unknown>).activeDeploymentId as string,
-				((row.app as Record<string, unknown>).isSpa as boolean) ?? false,
-			);
+			if ((app.buildPack as string) === "dockerfile") {
+				await upsertProxyRoute(
+					app.id as string,
+					domain,
+					(app.port as number) ?? 80,
+				);
+			} else {
+				await upsertFileRoute(
+					app.id as string,
+					domain,
+					(app.isSpa as boolean) ?? false,
+				);
+			}
 			restored++;
 			logger.info(
 				{ appId: (row.app as Record<string, unknown>).id, domain },

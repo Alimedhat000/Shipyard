@@ -1,17 +1,11 @@
 import { getEnv } from "../../config/env.js";
-import { buildRouteConfig } from "./config-builder.js";
+import {
+	buildReverseProxyRouteConfig,
+	buildRouteConfig,
+} from "./config-builder.js";
 
-export async function upsertRoute(
-	appId: string,
-	domain: string,
-	_userId: string,
-	_deploymentId: string,
-	isSpa: boolean,
-): Promise<void> {
+async function applyRoute(route: Record<string, unknown>, routeId: string) {
 	const adminUrl = getEnv().CADDY_ADMIN_URL;
-	const route = buildRouteConfig(domain, appId, isSpa);
-	const routeId = `app-${appId}`;
-
 	const headers = {
 		"Content-Type": "application/json",
 		Origin: "http://shipyard.local",
@@ -45,4 +39,22 @@ export async function upsertRoute(
 
 	const body = await patchRes.text().catch(() => "unknown");
 	throw new Error(`Failed to update route: ${body}`);
+}
+
+export async function upsertFileRoute(
+	appId: string,
+	domain: string,
+	isSpa: boolean,
+): Promise<void> {
+	const route = buildRouteConfig(domain, appId, isSpa);
+	await applyRoute(route, `app-${appId}`);
+}
+
+export async function upsertProxyRoute(
+	appId: string,
+	domain: string,
+	port: number,
+): Promise<void> {
+	const route = buildReverseProxyRouteConfig(domain, appId, port);
+	await applyRoute(route, `app-${appId}`);
 }

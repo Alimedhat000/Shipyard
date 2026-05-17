@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -80,6 +81,7 @@ function resolveDocker(): Docker {
  */
 export class DockerRunner {
 	private docker: Docker;
+	private resolvedNetwork: string | null = null;
 
 	/**
 	 * @param docker - Optional pre-configured Docker client. Omit to auto-detect socket.
@@ -89,10 +91,131 @@ export class DockerRunner {
 	}
 
 	/**
+	 * Detects the Docker network the worker container is attached to.
+	 *
+	 * Inspects the current container (via hostname) and returns the first
+	 * network found. This handles Docker Compose project name prefixes
+	 * (e.g. "coolify_clone_shipyard" instead of just "shipyard").
+	 *
+	 * Falls back to "bridge" if detection fails.
+	 */
+	private async detectNetwork(): Promise<string> {
+		if (this.resolvedNetwork) return this.resolvedNetwork;
+		try {
+			const hostname = os.hostname();
+			const container = this.docker.getContainer(hostname);
+			const info = await container.inspect();
+			const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
+			if (networks.length > 0) {
+				this.resolvedNetwork = networks[0];
+				logger.debug(
+					{ network: this.resolvedNetwork },
+					"Detected worker network",
+				);
+				return this.resolvedNetwork;
+			}
+		} catch {
+			// Not running inside a container — use fallback
+		}
+		this.resolvedNetwork = "bridge";
+		return this.resolvedNetwork;
+	}
+
+	/**
+	 * Ensures a Docker image is available locally — pulls if missing.
+	 *
+	 * Uses dockerode's callback-based pull with followProgress to
+	 * guarantee the pull completes before resolving. Logs clearly on
+	 * both pull and cache-hit paths so missing-image errors are
+	 * distinguishable from container errors.
+	 *
+	 * @param image - Full image reference (e.g. "node:20-bookworm-slim")
+	 * @throws Error if the image cannot be found in any registry
+	 */
+	async ensureImage(image: string): Promise<void> {
+		try {
+			await this.docker.getImage(image).inspect();
+			logger.debug({ image }, "Image already cached locally");
+			return;
+		} catch {
+			// Not present locally — pull it
+		}
+
+		return new Promise<void>((resolve, reject) => {
+			logger.info({ image }, "Pulling missing image");
+
+			this.docker.pull(image, (err: Error, stream: NodeJS.ReadableStream) => {
+				if (err) {
+					reject(new Error(`Failed to pull image '${image}': ${err.message}`));
+					return;
+				}
+
+				this.docker.modem.followProgress(stream, (err) => {
+					if (err) {
+						reject(
+							new Error(`Failed to pull image '${image}': ${err.message}`),
+						);
+					} else {
+						logger.info({ image }, "Image pulled successfully");
+						resolve();
+					}
+				});
+			});
+		});
+	}
+
+	/**
+	 * Runs a single command in a fresh container and waits for it to finish.
+	 *
+	 * Container is created, started, waited on, then removed — fire-and-forget.
+	 * Use this for one-shot steps (clone, copy) where you don't need
+	 * a persistent build environment across multiple exec calls.
+	 *
+	 * The image entrypoint is cleared so that opts.cmd runs directly.
+	 *
+	 * @param opts.image - Docker image (e.g. "alpine/git")
+	 * @param opts.cmd - Command to run (e.g. ["git", "clone", ...])
+	 * @param opts.binds - Host-to-container bind mounts (e.g. ["/host:/container"])
+	 * @param opts.env - Environment variables passed via -e
+	 * @returns The exit code from the container
+	 */
+	async runOnce(opts: {
+		image: string;
+		cmd: string[];
+		binds: string[];
+		env: Record<string, string>;
+	}): Promise<number> {
+		await this.ensureImage(opts.image);
+		logger.debug(
+			{ image: opts.image, cmd: opts.cmd },
+			"runOnce: creating container",
+		);
+
+		const container = await this.docker.createContainer({
+			Image: opts.image,
+			Cmd: opts.cmd,
+			Entrypoint: [""],
+			HostConfig: { Binds: opts.binds },
+			Env: Object.entries(opts.env).map(([k, v]) => `${k}=${v}`),
+		});
+
+		await container.start();
+		const result = await container.wait();
+		await container.remove().catch(() => {});
+
+		logger.debug(
+			{ image: opts.image, exitCode: result.StatusCode },
+			"runOnce: container finished",
+		);
+		return result.StatusCode;
+	}
+
+	/**
 	 * Creates and starts a build container.
 	 *
 	 * Container stays alive with `sleep infinity` so multiple exec calls
 	 * can reuse the same filesystem, node_modules, and caches.
+	 * Image is ensured locally before creation via ensureImage().
 	 *
 	 * @param opts.image - Docker image (e.g. "node:18-bullseye")
 	 * @param opts.memory - Memory limit in bytes
@@ -104,14 +227,7 @@ export class DockerRunner {
 	 * @returns The started Docker container
 	 */
 	async create(opts: CreateContainerOptions) {
-		try {
-			await this.docker.pull(opts.image);
-		} catch (err) {
-			logger.warn(
-				{ err, image: opts.image },
-				"Image pull failed, trying to use local",
-			);
-		}
+		await this.ensureImage(opts.image);
 		const container = await this.docker.createContainer({
 			Image: opts.image,
 			Cmd: ["sleep", "infinity"],
@@ -133,6 +249,164 @@ export class DockerRunner {
 		}
 
 		return container;
+	}
+
+	// -----------------------------------------------------------------------
+	// Dockerfile / long-lived container helpers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Builds a Docker image from a local context directory.
+	 *
+	 * Uses `docker build` via the host CLI, which is installed in the
+	 * worker image. This is preferred over dockerode's buildImage
+	 * because the CLI handles:
+	 * - .dockerignore natively
+	 * - progress output as plain text (loggable)
+	 * - flags like --build-arg, --target, --platform
+	 *
+	 * @param opts.contextDir - Directory containing the Dockerfile and build context
+	 * @param opts.dockerfile - Path to Dockerfile (absolute, inside contextDir)
+	 * @param opts.tag - Image tag (e.g. "shipyard-app-123:deploy-456")
+	 * @param opts.onData - Called with each build output chunk
+	 * @throws Error if docker build exits with non-zero code
+	 */
+	async buildImage(opts: {
+		contextDir: string;
+		dockerfile: string;
+		tag: string;
+		onData?: (chunk: string) => void;
+	}): Promise<void> {
+		const relDockerfile = path.relative(opts.contextDir, opts.dockerfile);
+
+		return new Promise<void>((resolve, reject) => {
+			const proc = spawn(
+				"docker",
+				["build", "-f", relDockerfile, "-t", opts.tag, opts.contextDir],
+				{
+					cwd: opts.contextDir,
+					stdio: ["ignore", "pipe", "pipe"],
+				},
+			);
+
+			let stderr = "";
+
+			proc.stdout?.on("data", (chunk: Buffer) => {
+				const text = chunk.toString();
+				opts.onData?.(text);
+			});
+
+			proc.stderr?.on("data", (chunk: Buffer) => {
+				const text = chunk.toString();
+				stderr += text;
+				opts.onData?.(text);
+			});
+
+			proc.on("close", (code) => {
+				if (code === 0) {
+					resolve();
+				} else {
+					reject(
+						new Error(
+							`docker build exited with code ${code}: ${stderr.slice(0, 500)}`,
+						),
+					);
+				}
+			});
+
+			proc.on("error", reject);
+		});
+	}
+
+	/**
+	 * Creates and starts a long-lived container (for dockerfile / dockerimage
+	 * build packs). Unlike create(), this does NOT use "sleep infinity" —
+	 * the container runs whatever CMD/ENTRYPOINT the image defines.
+	 *
+	 * Container is auto-restarted on crash (restart policy: unless-stopped)
+	 * and the configured port is mapped to the same port on the host.
+	 *
+	 * @param opts.image - Docker image to run (already built or pulled)
+	 * @param opts.containerName - Name assigned to the container
+	 * @param opts.port - Container port to expose and map
+	 * @param opts.envVars - Environment variables passed via -e
+	 * @param opts.labels - Docker labels for container tracking
+	 * @returns The started Docker container
+	 */
+	async runLongLived(opts: {
+		image: string;
+		containerName: string;
+		containerPort: number;
+		envVars: Record<string, string>;
+		labels: Record<string, string>;
+	}): Promise<number> {
+		const network = await this.detectNetwork();
+
+		const container = await this.docker.createContainer({
+			name: opts.containerName,
+			Image: opts.image,
+			ExposedPorts: { [`${opts.containerPort}/tcp`]: {} },
+			HostConfig: {
+				PortBindings: {
+					[`${opts.containerPort}/tcp`]: [{}],
+				},
+				RestartPolicy: { Name: "unless-stopped" },
+			},
+			Env: Object.entries(opts.envVars).map(([k, v]) => `${k}=${v}`),
+			Labels: opts.labels,
+			NetworkingConfig: {
+				EndpointsConfig: {
+					[network]: {},
+				},
+			},
+		});
+
+		await container.start();
+
+		const info = await container.inspect();
+		const portKey = `${opts.containerPort}/tcp`;
+		const hostPort = info.NetworkSettings?.Ports?.[portKey]?.[0]?.HostPort;
+
+		if (!hostPort) {
+			throw new Error(
+				`Failed to get mapped host port for container port ${opts.containerPort}`,
+			);
+		}
+
+		return Number(hostPort);
+	}
+
+	/**
+	 * Stops and removes a container by name.
+	 *
+	 * Best-effort — if no container with this name exists, it's a no-op.
+	 * Errors are logged but not thrown (cleanup).
+	 *
+	 * @param containerName - Name of the container to stop and remove
+	 */
+	async stopByName(containerName: string) {
+		const container = this.docker.getContainer(containerName);
+
+		try {
+			await container.stop({ t: 5 });
+		} catch (err: unknown) {
+			const statusCode = (err as Record<string, unknown>)?.statusCode;
+			if (statusCode !== 304) {
+				logger.warn({ err, containerName }, "Failed to stop container by name");
+			}
+		}
+
+		try {
+			await container.remove({ force: true });
+		} catch (err: unknown) {
+			const statusCode = (err as Record<string, unknown>)?.statusCode;
+			if (statusCode !== 404) {
+				logger.warn(
+					{ err, containerName },
+					"Failed to remove container by name",
+				);
+			}
+		}
 	}
 
 	/**

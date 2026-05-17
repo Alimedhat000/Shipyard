@@ -58,3 +58,21 @@ export function buildRouteConfig(
 		terminal: true,
 	};
 }
+
+export function buildReverseProxyRouteConfig(
+	domain: string,
+	appId: string,
+	port: number,
+): Record<string, unknown> {
+	return {
+		"@id": `app-${appId}`,
+		match: [{ host: [domain] }],
+		handle: [
+			{
+				handler: "reverse_proxy",
+				upstreams: [{ dial: `shipyard-app-${appId}:${port}` }],
+			},
+		],
+		terminal: true,
+	};
+}

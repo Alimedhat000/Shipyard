@@ -25,6 +25,8 @@ COPY packages/worker/package.json packages/worker/
 RUN npm install -g pnpm@11.1.1 && \
     pnpm install --frozen-lockfile --prod --filter @shipyard/worker...
 
+RUN apk add --no-cache docker-cli
+
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/
 COPY --from=builder /app/packages/worker/dist packages/worker/dist/
 

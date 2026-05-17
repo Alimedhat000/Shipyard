@@ -8,3 +8,5 @@ COPY packages/worker/package.json packages/worker/
 
 RUN npm install -g pnpm@11.1.1 && \
     pnpm install --frozen-lockfile
+
+RUN apk add --no-cache docker-cli
