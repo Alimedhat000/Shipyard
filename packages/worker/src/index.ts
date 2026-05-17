@@ -16,12 +16,12 @@ import Redis from "ioredis";
 import { db } from "./config/db.js";
 import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
+import { processDeployment } from "./deployments/processor.js";
 import {
 	upsertFileRoute,
 	upsertProxyRoute,
-} from "./deployments/caddy/client.js";
-import { DockerRunner } from "./deployments/docker/docker-runner.js";
-import { processDeployment } from "./jobs/deploy.js";
+} from "./infrastructure/caddy/client.js";
+import { DockerRunner } from "./infrastructure/docker/docker-runner.js";
 
 logger.info("Shipyard worker starting...");
 

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LogBuffer } from "../../src/deployments/logs/log-buffer.js";
+import { LogBuffer } from "../../../src/infrastructure/log-buffer.js";
 
 const TEST_DIR = "/tmp/shipyard-test/builds";
 
@@ -55,7 +55,6 @@ describe("LogBuffer", () => {
 		log.appendLine("first");
 		await log.flushOnStepEnd();
 
-		// calling flush again on a closed stream should be a no-op
 		await log.flushOnStepEnd();
 	});
 });

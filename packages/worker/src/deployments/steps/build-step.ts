@@ -1,7 +1,7 @@
 import type { App } from "@shipyard/shared/schema";
-import type { DockerRunner } from "../docker/docker-runner.js";
+import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
+import type { LogBuffer } from "../../infrastructure/log-buffer.js";
 import { classifyError } from "../errors/classify-error.js";
-import type { LogBuffer } from "../logs/log-buffer.js";
 import type { StepResult } from "./clone-step.js";
 
 /**

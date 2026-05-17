@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getEnv } from "../../config/env.js";
-import { logger } from "../../config/logger.js";
+import { getEnv } from "../config/env.js";
+import { logger } from "../config/logger.js";
 
 export class LogBuffer {
 	private step: string;

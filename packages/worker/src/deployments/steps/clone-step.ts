@@ -1,9 +1,9 @@
 import { StepError } from "@shipyard/shared";
 import type { App } from "@shipyard/shared/schema";
-import type { DockerRunner } from "../docker/docker-runner.js";
+import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
+import type { LogBuffer } from "../../infrastructure/log-buffer.js";
+import { RetryExhaustedError, withRetry } from "../../infrastructure/retry.js";
 import { classifyError } from "../errors/classify-error.js";
-import type { LogBuffer } from "../logs/log-buffer.js";
-import { RetryExhaustedError, withRetry } from "../utils/retry.js";
 
 /** Result returned by a build step — ok or classified error. */
 export type StepResult = {

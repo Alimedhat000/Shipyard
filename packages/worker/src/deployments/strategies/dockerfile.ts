@@ -2,14 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { apps, deployments, domains } from "@shipyard/shared";
 import { and, eq } from "drizzle-orm";
-import type { DockerRunner } from "./docker/docker-runner.js";
+import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
+import { fetchDecryptedEnvVars } from "../env-vars.js";
 import {
 	createBuildJobRow,
 	createWorkspace,
-	fetchDecryptedEnvVars,
 	finalizeBuildJobRow,
 	insertStructuredEvent,
-} from "./shared.js";
+} from "../events.js";
 
 const PORT_CONFLICT_RETRIES = 3;
 const PORT_CONFLICT_BACKOFF_MS = 2000;
