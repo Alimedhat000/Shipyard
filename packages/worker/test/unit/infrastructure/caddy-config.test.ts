@@ -22,17 +22,19 @@ describe("Caddy config builder", () => {
 			const route = buildRouteConfig("spa.example.com", "app-2", true);
 			expect(route["@id"]).toBe("app-app-2");
 			expect(route.terminal).toBe(true);
-			expect(route.handle[0].handler).toBe("subroute");
-			const subroutes = route.handle[0].routes;
-			expect(subroutes).toHaveLength(1);
-			expect(subroutes[0].handle[0]).toMatchObject({
+			expect(route.handle).toHaveLength(3);
+			expect(route.handle[0]).toMatchObject({
 				handler: "file_server",
 				root: "/var/lib/shipyard/sites/app-2",
+				pass_thru: true,
 			});
-			const errors = route.handle[0].errors;
-			expect(errors.routes[0].handle[0]).toMatchObject({
+			expect(route.handle[1]).toMatchObject({
 				handler: "rewrite",
 				uri: "/index.html",
+			});
+			expect(route.handle[2]).toMatchObject({
+				handler: "file_server",
+				root: "/var/lib/shipyard/sites/app-2",
 			});
 		});
 
