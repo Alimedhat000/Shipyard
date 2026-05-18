@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { getEnv } from "../../config/env.js";
 import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
+import { LogBuffer } from "../../infrastructure/log-buffer.js";
 import { fetchDecryptedEnvVars } from "../env-vars.js";
 import {
 	createBuildJobRow,
@@ -18,9 +19,8 @@ import {
 type DB = PostgresJsDatabase<Record<string, unknown>>;
 
 function checkNixpacksInstalled(): void {
-	try {
-		spawnSync("nixpacks", ["--version"], { stdio: "pipe" });
-	} catch {
+	const result = spawnSync("nixpacks", ["--version"], { stdio: "pipe" });
+	if (result.error || (result.status ?? 1) !== 0) {
 		throw new Error(
 			"Nixpacks is not installed. Install it with: curl -fsSL https://nixpacks.com/install.sh | sh",
 		);
@@ -33,6 +33,7 @@ function runNixpacksBuild(
 	envMap: Record<string, string>,
 	subdirectory: string,
 	isStatic: boolean,
+	log: LogBuffer,
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const repoDir = subdirectory
@@ -59,29 +60,27 @@ function runNixpacksBuild(
 			args.push("--start-cmd", app.runCommand);
 		}
 
-		for (const [key, value] of Object.entries(envMap)) {
-			args.push("--env", `${key}=${value}`);
-		}
+		// Write env vars to a temporary file so secrets never appear on the command line.
+		const envFilePath = path.join(workspacePath, ".env");
+		const envFileContent = Object.entries(envMap)
+			.map(([k, v]) => `${k}="${v.replace(/"/g, '\\"')}"`)
+			.join("\n");
+		fs.writeFileSync(envFilePath, envFileContent, { mode: 0o600 });
+		args.push("--env-file", envFilePath);
 
 		const proc = spawn("nixpacks", args, {
 			cwd: repoDir,
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 
-		const chunks: Buffer[] = [];
-		proc.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
-		proc.stderr?.on("data", (chunk: Buffer) => chunks.push(chunk));
+		proc.stdout?.on("data", (chunk: Buffer) => log.append(chunk.toString()));
+		proc.stderr?.on("data", (chunk: Buffer) => log.append(chunk.toString()));
 
 		proc.on("close", (code) => {
 			if (code === 0) {
 				resolve();
 			} else {
-				const output = Buffer.concat(chunks).toString();
-				reject(
-					new Error(
-						`Nixpacks build failed (exit ${code}): ${output.slice(0, 2000)}`,
-					),
-				);
+				reject(new Error(`Nixpacks build failed (exit ${code})`));
 			}
 		});
 
@@ -231,6 +230,8 @@ export async function deployNixpacks(
 
 		const isStatic = app.isStatic ?? true;
 
+		const buildLog = new LogBuffer(deploymentId, "nixpacks-build");
+
 		try {
 			await runNixpacksBuild(
 				workspacePath,
@@ -238,11 +239,14 @@ export async function deployNixpacks(
 				envMap,
 				subdirectory,
 				isStatic,
+				buildLog,
 			);
 			await finalizeBuildJobRow(db, deploymentId, "nixpacks-build", true, 1);
 		} catch (err) {
 			await finalizeBuildJobRow(db, deploymentId, "nixpacks-build", false, 0);
 			throw err;
+		} finally {
+			await buildLog.flushOnStepEnd();
 		}
 		await insertStructuredEvent(
 			db,
