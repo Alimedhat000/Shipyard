@@ -29,6 +29,13 @@ const router = createBrowserRouter([
 		},
 	},
 	{
+		path: "/app/:id",
+		lazy: async () => {
+			const { AppSettings } = await import("./pages/AppSettings");
+			return { Component: AppSettings };
+		},
+	},
+	{
 		path: "/",
 		lazy: async () => {
 			const { HomeRedirect } = await import("./pages/HomeRedirect");

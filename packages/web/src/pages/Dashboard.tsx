@@ -1,5 +1,6 @@
 import { ChevronDown, Loader2, Plus, Settings, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CreateAppModal } from "../components/CreateAppModal";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useApps, useDeleteApp } from "../hooks/useApps";
@@ -191,6 +192,7 @@ interface AppData {
 }
 
 function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
+	const navigate = useNavigate();
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const [showDeployments, setShowDeployments] = useState(false);
 	const [deployVersion, setDeployVersion] = useState(0);
@@ -289,6 +291,14 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 									VISIT
 								</a>
 							)}
+							<button
+								type="button"
+								title="Settings"
+								onClick={() => navigate(`/app/${app.id}`)}
+								className="font-mono text-[10px] tracking-widest text-ship-fog/60 hover:text-white border border-ship-deck/30 hover:border-ship-deck px-2 py-1 transition-colors"
+							>
+								SETTINGS
+							</button>
 							<button
 								type="button"
 								title="Deploy"
