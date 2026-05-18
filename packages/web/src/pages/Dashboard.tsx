@@ -12,7 +12,6 @@ import {
 
 const BUILD_PACK_COLORS: Record<string, string> = {
 	nixpacks: "text-purple-400 border-purple-900/50 bg-purple-950/20",
-	static: "text-ship-buoy border-ship-buoy/20 bg-ship-buoy/5",
 	dockerfile: "text-blue-400 border-blue-900/50 bg-blue-950/20",
 	dockercompose: "text-yellow-400 border-yellow-900/50 bg-yellow-950/20",
 	dockerimage: "text-orange-400 border-orange-900/50 bg-orange-950/20",
@@ -203,7 +202,7 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 
 	const deployStatus = latestDeployment?.status ?? "idle";
 	const packColor =
-		BUILD_PACK_COLORS[app.buildPack] ?? BUILD_PACK_COLORS.static;
+		BUILD_PACK_COLORS[app.buildPack] ?? BUILD_PACK_COLORS.nixpacks;
 	const dotColor = STATUS_DOT[deployStatus] ?? STATUS_DOT.idle;
 
 	useEffect(() => {

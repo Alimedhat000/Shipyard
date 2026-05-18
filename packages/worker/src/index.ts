@@ -48,12 +48,16 @@ async function reconcileCaddyRoutes(): Promise<number> {
 
 	let restored = 0;
 	for (const row of rows) {
+		const app = row.app as Record<string, unknown>;
 		const domain =
 			row.primaryDomain ??
-			`${(row.app as Record<string, unknown>).name}.${env.BASE_DOMAIN}`;
-		const app = row.app as Record<string, unknown>;
+			`${(app.name as string) ?? "app"}.${env.BASE_DOMAIN}`;
 		try {
-			if ((app.buildPack as string) === "dockerfile") {
+			const buildPack = app.buildPack as string;
+			if (
+				buildPack === "dockerfile" ||
+				(buildPack === "nixpacks" && !(app.isStatic as boolean))
+			) {
 				await upsertProxyRoute(
 					app.id as string,
 					domain,
@@ -67,13 +71,10 @@ async function reconcileCaddyRoutes(): Promise<number> {
 				);
 			}
 			restored++;
-			logger.info(
-				{ appId: (row.app as Record<string, unknown>).id, domain },
-				"Caddy route restored",
-			);
+			logger.info({ appId: app.id as string, domain }, "Caddy route restored");
 		} catch (err) {
 			logger.warn(
-				{ err, appId: (row.app as Record<string, unknown>).id, domain },
+				{ err, appId: app.id as string, domain },
 				"Failed to restore Caddy route",
 			);
 		}

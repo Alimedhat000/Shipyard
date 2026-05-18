@@ -13,7 +13,6 @@ import {
 
 export const buildPackEnum = pgEnum("build_pack", [
 	"nixpacks",
-	"static",
 	"dockerfile",
 	"dockercompose",
 	"dockerimage",
@@ -79,11 +78,12 @@ export const apps = pgTable(
 		buildCommand: varchar("build_command", { length: 500 }),
 		outputDir: varchar("output_dir", { length: 255 }),
 		subdirectory: varchar("subdirectory", { length: 255 }),
+		isStatic: boolean("is_static").default(true),
 		branch: varchar("branch", { length: 100 }).default("main"),
 		buildTimeout: integer("build_timeout").default(900),
 		activeDeploymentId: uuid("active_deployment_id"),
 		webhookSecret: varchar("webhook_secret", { length: 255 }),
-		buildPack: buildPackEnum("build_pack").notNull().default("static"),
+		buildPack: buildPackEnum("build_pack").notNull().default("nixpacks"),
 		port: integer("port").default(80),
 		runCommand: varchar("run_command", { length: 500 }),
 		installCommand: varchar("install_command", { length: 500 }),

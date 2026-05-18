@@ -92,6 +92,7 @@ services:
     container_name: shipyard-worker
     volumes:
       - shipyard_sites:/var/lib/shipyard/sites
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-shipyard}:${POSTGRES_PASSWORD:-shipyard}@postgres:5432/${POSTGRES_DB:-shipyard}
       REDIS_URL: redis://redis:6379

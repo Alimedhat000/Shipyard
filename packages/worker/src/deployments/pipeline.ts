@@ -13,7 +13,7 @@ type DB = PostgresJsDatabase<Record<string, unknown>>;
 import type { Env } from "../config/env.js";
 import type { DockerRunner } from "../infrastructure/docker/docker-runner.js";
 import { deployDockerfile } from "./strategies/dockerfile.js";
-import { deployBuildPack } from "./strategies/static.js";
+import { deployNixpacks } from "./strategies/nixpacks.js";
 
 export interface OrchestratorDeps {
 	db: DB;
@@ -66,7 +66,6 @@ export class DeploymentOrchestrator {
 	async process(deploymentId: string): Promise<void> {
 		const ctx = await this.fetchDeploymentContext(deploymentId);
 		const app: App = ctx.app;
-		const userId: string = ctx.userId;
 		const githubAccessToken: string | null = ctx.githubAccessToken;
 
 		this.deps.logger.info(
@@ -88,16 +87,16 @@ export class DeploymentOrchestrator {
 			return;
 		}
 
-		await deployBuildPack(
+		await deployNixpacks(
 			deploymentId,
 			app,
-			userId,
 			githubAccessToken,
 			this.deps.db,
 			this.deps.env,
 			this.deps.logger,
 			this.deps.runner,
 			this.deps.upsertFileRoute,
+			this.deps.upsertProxyRoute,
 		);
 	}
 }

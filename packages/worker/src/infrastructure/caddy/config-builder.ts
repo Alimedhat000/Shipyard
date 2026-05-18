@@ -32,27 +32,17 @@ export function buildRouteConfig(
 		match: [{ host: [domain] }],
 		handle: [
 			{
-				handler: "subroute",
-				routes: [
-					{
-						handle: [
-							{
-								handler: "file_server",
-								root,
-							},
-						],
-					},
-				],
-				errors: {
-					routes: [
-						{
-							handle: [
-								{ handler: "rewrite", uri: "/index.html" },
-								{ handler: "file_server", root },
-							],
-						},
-					],
-				},
+				handler: "file_server",
+				root,
+				pass_thru: true,
+			},
+			{
+				handler: "rewrite",
+				uri: "/index.html",
+			},
+			{
+				handler: "file_server",
+				root,
 			},
 		],
 		terminal: true,

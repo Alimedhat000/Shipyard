@@ -36,6 +36,7 @@ const appFieldDefs = {
 		.transform((val) =>
 			val?.trim() ? val.replace(/^\/+|\/+$/g, "") : undefined,
 		),
+	isStatic: z.boolean(),
 	port: z.number().int().positive(),
 	runCommand: safeCommandSchema.optional(),
 	installCommand: installCommandSchema.optional(),
@@ -52,6 +53,7 @@ export const appRefinement = <
 		buildPack?: string;
 		githubRepo?: string;
 		outputDir?: string;
+		isStatic?: boolean;
 		image?: string;
 	},
 >(
@@ -66,8 +68,8 @@ export const appRefinement = <
 		});
 	}
 	if (
-		data.buildPack &&
-		(data.buildPack === "static" || data.buildPack === "nixpacks") &&
+		data.buildPack === "nixpacks" &&
+		data.isStatic !== false &&
 		!data.outputDir
 	) {
 		ctx.addIssue({
@@ -93,6 +95,7 @@ const withDefaults = z.object({
 	buildCommand: appFieldDefs.buildCommand,
 	outputDir: appFieldDefs.outputDir,
 	subdirectory: appFieldDefs.subdirectory,
+	isStatic: appFieldDefs.isStatic.default(true),
 	port: appFieldDefs.port.default(80),
 	runCommand: appFieldDefs.runCommand,
 	installCommand: appFieldDefs.installCommand,

@@ -6,12 +6,6 @@ const PACKS = [
 		tag: "NX",
 	},
 	{
-		value: "static",
-		label: "Static",
-		desc: "Serve pre-built assets via nginx",
-		tag: "ST",
-	},
-	{
 		value: "dockerfile",
 		label: "Dockerfile",
 		desc: "Build and run a custom Dockerfile",

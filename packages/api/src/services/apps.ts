@@ -24,6 +24,8 @@ const safeColumns = {
 	buildPack: apps.buildPack,
 	port: apps.port,
 	runCommand: apps.runCommand,
+	installCommand: apps.installCommand,
+	isStatic: apps.isStatic,
 	dockerfilePath: apps.dockerfilePath,
 	isSpa: apps.isSpa,
 	customNginxConfig: apps.customNginxConfig,

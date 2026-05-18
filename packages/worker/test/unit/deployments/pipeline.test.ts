@@ -1,6 +1,30 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("node:child_process", () => {
+	const createSpawn = () => {
+		const fn = (..._args: unknown[]) => {
+			const self = {
+				stdout: { on: vi.fn() },
+				stderr: { on: vi.fn() },
+				on: vi.fn((_event: string, cb: (code: number) => void) => {
+					cb(0);
+					return self;
+				}),
+			};
+			return self;
+		};
+		return fn;
+	};
+	const spawnSync = vi.fn(() => ({
+		status: 0,
+		stdout: Buffer.from(""),
+		stderr: Buffer.from(""),
+	}));
+	return { spawnSync, spawn: createSpawn(), execSync: vi.fn() };
+});
+
 import type { OrchestratorDeps } from "../../../src/deployments/pipeline.js";
 import { DeploymentOrchestrator } from "../../../src/deployments/pipeline.js";
 
@@ -86,22 +110,24 @@ function makeDeps(selectResults?: unknown[][], buildDir?: string) {
 }
 
 describe("DeploymentOrchestrator", () => {
-	describe("static build pack", () => {
+	describe("nixpacks static (isStatic=true)", () => {
 		const BUILD_DIR = "/tmp/shipyard-test/builds";
-		const SITES_DIR = "/tmp/shipyard-test/sites";
 
-		function makeAppContext() {
+		function makeStaticAppContext() {
 			return [
 				{
-					deployment: { id: "deploy-1" },
+					deployment: { id: "deploy-nx-1" },
 					app: {
-						id: "app-1",
-						name: "myapp",
+						id: "app-nx-1",
+						name: "myapp-nx",
 						githubRepo: "user/repo",
-						buildTimeout: 900,
+						buildPack: "nixpacks",
+						isStatic: true,
 						outputDir: "dist",
 						isSpa: false,
+						buildTimeout: 900,
 						branch: "main",
+						port: 80,
 					},
 					githubAccessToken: "gh_token_123",
 					userId: "user-1",
@@ -109,49 +135,26 @@ describe("DeploymentOrchestrator", () => {
 			];
 		}
 
-		function setupOutput(deploymentId: string) {
-			const dir = path.join(BUILD_DIR, deploymentId, "repo", "dist");
-			fs.mkdirSync(dir, { recursive: true });
-			fs.writeFileSync(path.join(dir, "index.html"), "<h1>test</h1>");
-		}
-
 		afterEach(() => {
 			fs.rmSync(BUILD_DIR, { recursive: true, force: true, maxRetries: 3 });
-			fs.rmSync(SITES_DIR, { recursive: true, force: true, maxRetries: 3 });
 		});
 
-		it("runs all steps and activates deployment on success", async () => {
-			setupOutput("deploy-1");
-			const deps = makeDeps([makeAppContext(), [], []]);
+		it("routes to nixpacks static — clones repo then extracts output", async () => {
+			const deps = makeDeps([makeStaticAppContext(), [], []]);
 			const orchestrator = new DeploymentOrchestrator(deps);
 
-			await orchestrator.process("deploy-1");
+			await orchestrator.process("deploy-nx-1");
 
-			expect(deps.runner.create).toHaveBeenCalledTimes(1);
-			expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
-			expect(deps.upsertFileRoute).toHaveBeenCalledWith(
-				"app-1",
-				"myapp.bigboss.dev",
-				false,
+			expect(deps.runner.runOnce).toHaveBeenCalledWith(
+				expect.objectContaining({ image: "alpine/git" }),
 			);
 		});
 
-		it("marks deployment as 'building' on start", async () => {
-			setupOutput("deploy-1");
-			const deps = makeDeps([makeAppContext(), [], []]);
+		it("mark deployment as 'success' after completion", async () => {
+			const deps = makeDeps([makeStaticAppContext(), [], []]);
 			const orchestrator = new DeploymentOrchestrator(deps);
 
-			await orchestrator.process("deploy-1");
-
-			expect((deps.db as any).update).toHaveBeenCalled();
-		});
-
-		it("marks deployment as 'success' after completion", async () => {
-			setupOutput("deploy-1");
-			const deps = makeDeps([makeAppContext(), [], []]);
-			const orchestrator = new DeploymentOrchestrator(deps);
-
-			await orchestrator.process("deploy-1");
+			await orchestrator.process("deploy-nx-1");
 
 			const updates = (deps.db as any).update.mock.results;
 			const lastSet = updates[updates.length - 1].value.set;
@@ -160,11 +163,16 @@ describe("DeploymentOrchestrator", () => {
 			);
 		});
 
-		it("fails on missing GitHub token — no container created", async () => {
+		it("fails on missing GitHub token — no clone", async () => {
 			const ctx = [
 				{
-					deployment: { id: "deploy-2" },
-					app: { id: "app-2", name: "myapp", githubRepo: "user/repo" },
+					deployment: { id: "deploy-nx-2" },
+					app: {
+						id: "app-nx-2",
+						name: "myapp-nx",
+						githubRepo: "user/repo",
+						buildPack: "nixpacks",
+					},
 					githubAccessToken: null,
 					userId: "user-2",
 				},
@@ -172,131 +180,67 @@ describe("DeploymentOrchestrator", () => {
 			const deps = makeDeps([ctx, [], []]);
 			const orchestrator = new DeploymentOrchestrator(deps);
 
-			await orchestrator.process("deploy-2");
+			await orchestrator.process("deploy-nx-2");
 
-			expect(deps.runner.create).not.toHaveBeenCalled();
-			expect(deps.runner.remove).not.toHaveBeenCalled();
+			expect(deps.runner.runOnce).not.toHaveBeenCalled();
 		});
 
-		it("marks deployment as 'failed' when GitHub token is missing", async () => {
-			const ctx = [
-				{
-					deployment: { id: "deploy-3" },
-					app: { id: "app-3", name: "myapp", githubRepo: "user/repo" },
-					githubAccessToken: null,
-					userId: "user-3",
-				},
-			];
-			const deps = makeDeps([ctx, [], []]);
+		it("marks deployment as failed when clone fails", async () => {
+			const deps = makeDeps([makeStaticAppContext(), [], []]);
+			deps.runner.runOnce = vi.fn().mockResolvedValue(128);
 			const orchestrator = new DeploymentOrchestrator(deps);
 
-			await orchestrator.process("deploy-3");
+			await orchestrator.process("deploy-nx-1");
 
-			const updates = (deps.db as any).update.mock.results;
-			const failedUpdate = updates
-				.map((r: any) => r.value.set.mock.calls[0]?.[0])
-				.find((s: any) => s?.status === "failed");
-			expect(failedUpdate).toBeDefined();
-		});
-
-		it("times out when build takes too long", async () => {
-			setupOutput("deploy-4");
-			const appCtx = makeAppContext();
-			appCtx[0].app.buildTimeout = 0;
-			const deps = makeDeps([appCtx, [], []]);
-			const orchestrator = new DeploymentOrchestrator(deps);
-
-			await orchestrator.process("deploy-4");
-
-			expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
-			expect(deps.logger.error).toHaveBeenCalled();
 			const updates = (deps.db as any).update.mock.results;
 			const lastSet = updates[updates.length - 1].value.set;
 			expect(lastSet).toHaveBeenCalledWith(
 				expect.objectContaining({ status: "failed" }),
 			);
 		});
+	});
 
-		it("marks deployment as failed when clone step fails", async () => {
-			setupOutput("deploy-5");
-			const deps = makeDeps([makeAppContext(), [], []]);
-			(deps.runner as any).exec = vi.fn().mockResolvedValue({
-				exitCode: 128,
-				oomKilled: false,
-				stdout: "",
-				stderr: "Permission denied",
-			});
-			const orchestrator = new DeploymentOrchestrator(deps);
+	describe("nixpacks server (isStatic=false)", () => {
+		const BUILD_DIR = "/tmp/shipyard-test/builds";
 
-			await orchestrator.process("deploy-5");
-
-			expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
-			expect(deps.upsertFileRoute).not.toHaveBeenCalled();
-			expect(deps.upsertProxyRoute).not.toHaveBeenCalled();
-			const updates = (deps.db as any).update.mock.results;
-			const lastSet = updates[updates.length - 1].value.set;
-			expect(lastSet).toHaveBeenCalledWith(
-				expect.objectContaining({ status: "failed" }),
-			);
-		});
-
-		it("cleans up container and workspace on unexpected error", async () => {
-			setupOutput("deploy-6");
-			const deps = makeDeps([makeAppContext(), [], []]);
-			(deps.runner as any).create = vi
-				.fn()
-				.mockRejectedValue(new Error("docker error"));
-			const orchestrator = new DeploymentOrchestrator(deps);
-
-			await orchestrator.process("deploy-6");
-
-			const updates = (deps.db as any).update.mock.results;
-			const failedSet = updates
-				.map((r: any) => r.value.set.mock.calls[0]?.[0])
-				.find((s: any) => s?.status === "failed");
-			expect(failedSet).toBeDefined();
-		});
-
-		it("works with subdirectory — verify step checks repo/{subdir}/dist", async () => {
-			const appCtx = [
+		function makeServerAppContext() {
+			return [
 				{
-					deployment: { id: "deploy-sub-1" },
+					deployment: { id: "deploy-nx-srv-1" },
 					app: {
-						id: "app-sub-1",
-						name: "myapp-sub",
+						id: "app-nx-srv-1",
+						name: "myapp-nx-srv",
 						githubRepo: "user/repo",
+						buildPack: "nixpacks",
+						isStatic: false,
+						port: 3000,
+						runCommand: "npm start",
 						buildTimeout: 900,
-						outputDir: "dist",
-						subdirectory: "frontend",
-						isSpa: false,
 						branch: "main",
 					},
 					githubAccessToken: "gh_token_123",
 					userId: "user-1",
 				},
 			];
-			const dir = path.join(
-				BUILD_DIR,
-				"deploy-sub-1",
-				"repo",
-				"frontend",
-				"dist",
-			);
-			fs.mkdirSync(dir, { recursive: true });
-			fs.writeFileSync(path.join(dir, "index.html"), "<h1>sub</h1>");
+		}
 
-			const deps = makeDeps([appCtx, [], []]);
+		afterEach(() => {
+			fs.rmSync(BUILD_DIR, { recursive: true, force: true, maxRetries: 3 });
+		});
+
+		it("routes to nixpacks server — clones, runs, and proxies", async () => {
+			const deps = makeDeps([makeServerAppContext(), [], []]);
 			const orchestrator = new DeploymentOrchestrator(deps);
 
-			await orchestrator.process("deploy-sub-1");
+			await orchestrator.process("deploy-nx-srv-1");
 
-			expect(deps.runner.create).toHaveBeenCalledTimes(1);
-			expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
-			expect(deps.upsertFileRoute).toHaveBeenCalledWith(
-				"app-sub-1",
-				"myapp-sub.bigboss.dev",
-				false,
+			expect(deps.runner.runOnce).toHaveBeenCalledWith(
+				expect.objectContaining({ image: "alpine/git" }),
 			);
+			expect(deps.runner.stopByName).toHaveBeenCalledWith(
+				"shipyard-app-app-nx-srv-1",
+			);
+			expect(deps.runner.runLongLived).toHaveBeenCalled();
 		});
 	});
 

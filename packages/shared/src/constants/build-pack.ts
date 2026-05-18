@@ -1,6 +1,5 @@
 export const BUILD_PACKS = [
 	"nixpacks",
-	"static",
 	"dockerfile",
 	"dockercompose",
 	"dockerimage",
@@ -10,7 +9,6 @@ export type BuildPack = (typeof BUILD_PACKS)[number];
 
 export const BUILD_PACK_LABELS: Record<BuildPack, string> = {
 	nixpacks: "Nixpacks (auto-detect)",
-	static: "Static (nginx)",
 	dockerfile: "Dockerfile",
 	dockercompose: "Docker Compose",
 	dockerimage: "Docker Image",
@@ -19,8 +17,6 @@ export const BUILD_PACK_LABELS: Record<BuildPack, string> = {
 export const BUILD_PACK_DESCRIPTIONS: Record<BuildPack, string> = {
 	nixpacks:
 		"Automatic detection and building via Nixpacks. Zero-config deployments for Node.js, PHP, Python, etc.",
-	static:
-		"Static site builder using Nginx. SPAs (React, Vue, Svelte), documentation sites, or plain HTML.",
 	dockerfile:
 		"Custom Dockerfile-based builds. Applications requiring specific OS dependencies or complex build stages.",
 	dockercompose:
