@@ -56,7 +56,7 @@ async function reconcileCaddyRoutes(): Promise<number> {
 			const buildPack = app.buildPack as string;
 			if (
 				buildPack === "dockerfile" ||
-				(buildPack === "nixpacks" && !(app.isStatic as boolean))
+				(buildPack === "nixpacks" && app.isStatic === false)
 			) {
 				await upsertProxyRoute(
 					app.id as string,
