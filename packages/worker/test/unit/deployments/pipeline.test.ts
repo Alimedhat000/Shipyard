@@ -256,6 +256,48 @@ describe("DeploymentOrchestrator", () => {
 				.find((s: any) => s?.status === "failed");
 			expect(failedSet).toBeDefined();
 		});
+
+		it("works with subdirectory — verify step checks repo/{subdir}/dist", async () => {
+			const appCtx = [
+				{
+					deployment: { id: "deploy-sub-1" },
+					app: {
+						id: "app-sub-1",
+						name: "myapp-sub",
+						githubRepo: "user/repo",
+						buildTimeout: 900,
+						outputDir: "dist",
+						subdirectory: "frontend",
+						isSpa: false,
+						branch: "main",
+					},
+					githubAccessToken: "gh_token_123",
+					userId: "user-1",
+				},
+			];
+			const dir = path.join(
+				BUILD_DIR,
+				"deploy-sub-1",
+				"repo",
+				"frontend",
+				"dist",
+			);
+			fs.mkdirSync(dir, { recursive: true });
+			fs.writeFileSync(path.join(dir, "index.html"), "<h1>sub</h1>");
+
+			const deps = makeDeps([appCtx, [], []]);
+			const orchestrator = new DeploymentOrchestrator(deps);
+
+			await orchestrator.process("deploy-sub-1");
+
+			expect(deps.runner.create).toHaveBeenCalledTimes(1);
+			expect(deps.runner.remove).toHaveBeenCalledWith("container-1");
+			expect(deps.upsertFileRoute).toHaveBeenCalledWith(
+				"app-sub-1",
+				"myapp-sub.bigboss.dev",
+				false,
+			);
+		});
 	});
 
 	describe("dockerfile build pack", () => {

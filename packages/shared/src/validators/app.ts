@@ -84,6 +84,7 @@ const withDefaults = z.object({
 	buildPack: appFieldDefs.buildPack,
 	buildCommand: appFieldDefs.buildCommand,
 	outputDir: appFieldDefs.outputDir,
+	subdirectory: appFieldDefs.subdirectory,
 	port: appFieldDefs.port.default(80),
 	runCommand: appFieldDefs.runCommand,
 	installCommand: appFieldDefs.installCommand,
