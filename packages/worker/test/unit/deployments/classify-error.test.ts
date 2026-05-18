@@ -1,3 +1,4 @@
+// DEAD CODE: Replaced by Nixpacks strategy (nixpacks.ts). Remove after #12 stable.
 import { describe, expect, it } from "vitest";
 import { classifyError } from "../../../src/deployments/errors/classify-error.js";
 

@@ -1,3 +1,4 @@
+// DEAD CODE: Replaced by Nixpacks strategy (nixpacks.ts). Remove after #12 stable.
 /** Build step failure category — determines retry behaviour in the orchestrator. */
 export type FailureCategory = "retryable" | "user_error" | "system_error";
 

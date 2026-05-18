@@ -1,3 +1,4 @@
+// DEAD CODE: Replaced by Nixpacks strategy (nixpacks.ts). Remove after #12 stable.
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

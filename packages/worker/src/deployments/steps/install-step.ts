@@ -1,3 +1,4 @@
+// DEAD CODE: Replaced by Nixpacks strategy (nixpacks.ts). Remove after #12 stable.
 import { StepError } from "@shipyard/shared";
 import type { App } from "@shipyard/shared/schema";
 import type { DockerRunner } from "../../infrastructure/docker/docker-runner.js";
