@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted
+Accepted (updated)
 
 ## Context
 
-Caddy needs to route `myapp.bigboss.dev` to the correct Garage prefix. Two approaches:
+Caddy needs to route `myapp.bigboss.dev` to the correct backend. Two approaches:
 
 1. **Dynamic (request-time):** Caddy queries the database per request to resolve `active_deployment_id` → S3 path.
 2. **Static (deploy-time):** Send JSON config to Caddy API when deployment succeeds or rollback happens.
@@ -19,19 +19,12 @@ If two deploys finish at the same time, both sending config to Caddy API, could 
 
 **Solution:** Use Caddy's per-route API (not full config):
 ```
-POST /config/apps/http/servers/{server_name}/routes/{route_id}
+PATCH /id/{route_id}   → update existing route
+POST /config/apps/http/servers/srv0/routes  → create new route
 ```
-- Each app gets unique route_id based on app.id
+- Each app gets unique `@id` based on `app-{appId}`
 - Deploy updates ONLY that app's route, not entire config
 - No lock needed — Caddy's API is atomic per-route
-
-**Alternative (if simpler for MVP):**
-- Single-threaded Caddy config writer (queue config updates)
-- Workers call queueCaddyUpdate(appId) after deploy
-- Background job processes queue serially
-- No concurrent writes to Caddy API
-
-We'll use per-route updates for simplicity.
 
 ## Decision
 
@@ -39,33 +32,38 @@ Static config generation at deploy time:
 
 1. Deployment succeeds (or rollback triggered)
 2. Read `active_deployment_id` from DB
-3. Generate Caddy JSON config via string-replace template:
+3. Generate Caddy JSON config:
 
-   ```json
-   {
-     "apps": {
-       "http": {
-         "servers": {
-           "sites": {
-             "listen": [":443"],
-             "routes": [{
-               "match": [{"host": ["myapp.bigboss.dev"]}],
-               "handle": [{
-                 "handler": "reverse_proxy",
-                  "upstreams": [{"dial": "garage:3900"}]
-               }]
-             }]
-           }
-         }
-       }
-     }
-   }
-   ```
+**Static sites (isStatic=true):**
+```json
+{
+  "@id": "app-{appId}",
+  "match": [{"host": ["myapp.bigboss.dev"]}],
+  "handle": [
+    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}", "pass_thru": true},
+    {"handler": "rewrite", "uri": "/index.html"},
+    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}"}
+  ],
+  "terminal": true
+}
+```
 
-4. Send JSON payload to Caddy Admin API (`POST /config/`)
-5. `Caddy auto-reloads upon receiving the config API update`
+The `pass_thru` on the first `file_server` lets unmatched requests fall through to the rewrite handler, which serves `index.html` for SPA routing. This replaces the broken subroute+errors pattern that doesn't work in Caddy v2.
 
-No database lookup per request. Caddy serves purely from static config.
+**Server apps (dockerfile, nixpacks isStatic=false):**
+```json
+{
+  "@id": "app-{appId}",
+  "match": [{"host": ["myapp.bigboss.dev"]}],
+  "handle": [
+    {"handler": "reverse_proxy", "upstreams": [{"dial": "shipyard-app-{appId}:{port}"}]}
+  ],
+  "terminal": true
+}
+```
+
+4. Send JSON payload to Caddy Admin API
+5. Caddy auto-reloads upon receiving the config API update
 
 ## Consequences
 
@@ -77,7 +75,6 @@ No database lookup per request. Caddy serves purely from static config.
 
 ## Alternatives Considered
 
-- **Dynamic via Lua/OpenResty (rejected):** Flexible but adds complexity and per-request overhead. Overkill for a static site platform.
-- **Dynamic via `auth_request` to API (rejected):** Adds API dependency in request path. If API is down, sites break.
-- **Symlink-style S3 paths (rejected):** S3 doesn't support symlinks. Would require copying files, which is slow on rollback.
-
+- **Dynamic via Lua/OpenResty (rejected):** Flexible but adds complexity and per-request overhead.
+- **Dynamic via `auth_request` to API (rejected):** Adds API dependency in request path.
+- **subroute + errors for SPA (rejected):** Caddy v2 doesn't support `errors` at the route level. `pass_thru` on `file_server` is the correct pattern.
