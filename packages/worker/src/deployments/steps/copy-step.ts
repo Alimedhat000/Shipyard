@@ -1,3 +1,4 @@
+// DEAD CODE: Replaced by Nixpacks strategy (nixpacks.ts). Remove after #12 stable.
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { StepResult } from "./clone-step.js";
