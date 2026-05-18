@@ -13,6 +13,7 @@ import type { StepResult } from "./clone-step.js";
 async function detectLockfile(
 	runner: DockerRunner,
 	containerId: string,
+	subdirectory: string,
 ): Promise<string | null> {
 	const candidates = [
 		{ file: "pnpm-lock.yaml", cmd: "pnpm install" },
@@ -20,10 +21,14 @@ async function detectLockfile(
 		{ file: "package-lock.json", cmd: "npm install" },
 	];
 
+	const base = subdirectory
+		? `/workspace/repo/${subdirectory}`
+		: "/workspace/repo";
+
 	for (const c of candidates) {
 		const result = await runner.exec(
 			containerId,
-			`test -f /workspace/repo/${c.file} && echo "found" || echo "not_found"`,
+			`test -f ${base}/${c.file} && echo "found" || echo "not_found"`,
 		);
 		if (result.stdout.trim() === "found") return c.cmd;
 	}
@@ -49,8 +54,9 @@ export async function runInstallStep(
 	containerId: string,
 	app: App,
 	log: LogBuffer,
+	subdirectory = "",
 ): Promise<StepResult> {
-	const lockfileCmd = await detectLockfile(runner, containerId);
+	const lockfileCmd = await detectLockfile(runner, containerId, subdirectory);
 	const installCmd = lockfileCmd ?? app.installCommand ?? "npm install";
 
 	let attempts = 0;
@@ -61,9 +67,12 @@ export async function runInstallStep(
 		const _result = await withRetry(
 			async () => {
 				attempts++;
+				const dir = subdirectory
+					? `/workspace/repo/${subdirectory}`
+					: "/workspace/repo";
 				const r = await runner.exec(
 					containerId,
-					`cd /workspace/repo && ${installCmd}`,
+					`cd ${dir} && ${installCmd}`,
 					(chunk) => log.append(chunk),
 				);
 				if (r.exitCode !== 0) {

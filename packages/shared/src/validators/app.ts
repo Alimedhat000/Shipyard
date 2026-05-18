@@ -22,6 +22,20 @@ const appFieldDefs = {
 	buildPack: z.enum(BUILD_PACKS),
 	buildCommand: z.string().optional(),
 	outputDir: z.string().optional(),
+	subdirectory: z
+		.string()
+		.optional()
+		.refine(
+			(val) => !val || noShellMeta.test(val),
+			"Contains unsafe shell characters",
+		)
+		.refine(
+			(val) => !val?.split("/").includes(".."),
+			"Must not contain parent directory references",
+		)
+		.transform((val) =>
+			val?.trim() ? val.replace(/^\/+|\/+$/g, "") : undefined,
+		),
 	port: z.number().int().positive(),
 	runCommand: safeCommandSchema.optional(),
 	installCommand: installCommandSchema.optional(),
@@ -78,6 +92,7 @@ const withDefaults = z.object({
 	buildPack: appFieldDefs.buildPack,
 	buildCommand: appFieldDefs.buildCommand,
 	outputDir: appFieldDefs.outputDir,
+	subdirectory: appFieldDefs.subdirectory,
 	port: appFieldDefs.port.default(80),
 	runCommand: appFieldDefs.runCommand,
 	installCommand: appFieldDefs.installCommand,

@@ -60,6 +60,7 @@ export async function deployBuildPack(
 	}
 
 	const workspacePath = createWorkspace(env, deploymentId);
+	const subdirectory = app.subdirectory ?? "";
 	let containerId: string | undefined;
 
 	try {
@@ -111,18 +112,26 @@ export async function deployBuildPack(
 				name: "install",
 				run: () => {
 					const log = new LogBuffer(deploymentId, "install");
-					return runInstallStep(runner, containerId!, app, log).finally(() =>
-						log.flushOnStepEnd(),
-					);
+					return runInstallStep(
+						runner,
+						containerId!,
+						app,
+						log,
+						subdirectory,
+					).finally(() => log.flushOnStepEnd());
 				},
 			},
 			{
 				name: "build",
 				run: () => {
 					const log = new LogBuffer(deploymentId, "build");
-					return runBuildStep(runner, containerId!, app, log).finally(() =>
-						log.flushOnStepEnd(),
-					);
+					return runBuildStep(
+						runner,
+						containerId!,
+						app,
+						log,
+						subdirectory,
+					).finally(() => log.flushOnStepEnd());
 				},
 			},
 			{
@@ -130,9 +139,12 @@ export async function deployBuildPack(
 				run: () => {
 					const log = new LogBuffer(deploymentId, "verify");
 					const outputDir = app.outputDir ?? "dist";
-					return runVerifyStep(deploymentId, outputDir, log).finally(() =>
-						log.flushOnStepEnd(),
-					);
+					return runVerifyStep(
+						deploymentId,
+						outputDir,
+						log,
+						subdirectory,
+					).finally(() => log.flushOnStepEnd());
 				},
 			},
 			{
@@ -142,6 +154,7 @@ export async function deployBuildPack(
 					const outputDir = path.join(
 						workspacePath,
 						"repo",
+						subdirectory,
 						app.outputDir ?? "dist",
 					);
 					return runCopyStep(app.id, outputDir).finally(() =>

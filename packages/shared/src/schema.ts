@@ -78,6 +78,7 @@ export const apps = pgTable(
 		githubRepo: varchar("github_repo", { length: 500 }).notNull().default(""),
 		buildCommand: varchar("build_command", { length: 500 }),
 		outputDir: varchar("output_dir", { length: 255 }),
+		subdirectory: varchar("subdirectory", { length: 255 }),
 		branch: varchar("branch", { length: 100 }).default("main"),
 		buildTimeout: integer("build_timeout").default(900),
 		activeDeploymentId: uuid("active_deployment_id"),

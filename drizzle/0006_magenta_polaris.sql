@@ -1,0 +1,1 @@
+ALTER TABLE "apps" ADD COLUMN "subdirectory" varchar(255);

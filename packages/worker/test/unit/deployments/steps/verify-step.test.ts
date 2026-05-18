@@ -68,4 +68,69 @@ describe("runVerifyStep", () => {
 		} as any);
 		expect(result.ok).toBe(false);
 	});
+
+	it("returns ok with subdirectory set — output at repo/{subdir}/{outputDir}", async () => {
+		makeFile("deploy-6/repo/frontend/dist/index.html");
+		const result = await runVerifyStep(
+			"deploy-6",
+			"dist",
+			{
+				appendLine: () => {},
+			} as any,
+			"frontend",
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	it("returns not ok when subdirectory is set but output at repo root", async () => {
+		makeFile("deploy-7/repo/dist/index.html");
+		const result = await runVerifyStep(
+			"deploy-7",
+			"dist",
+			{
+				appendLine: () => {},
+			} as any,
+			"frontend",
+		);
+		expect(result.ok).toBe(false);
+	});
+
+	it("works with multi-level subdirectory", async () => {
+		makeFile("deploy-8/repo/packages/web/dist/index.html");
+		const result = await runVerifyStep(
+			"deploy-8",
+			"dist",
+			{
+				appendLine: () => {},
+			} as any,
+			"packages/web",
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	it("empty subdirectory preserves root behavior", async () => {
+		makeFile("deploy-9/repo/dist/index.html");
+		const result = await runVerifyStep(
+			"deploy-9",
+			"dist",
+			{
+				appendLine: () => {},
+			} as any,
+			"",
+		);
+		expect(result.ok).toBe(true);
+	});
+
+	it("returns not ok with subdirectory when output dir missing", async () => {
+		makeDir("deploy-10/repo/frontend");
+		const result = await runVerifyStep(
+			"deploy-10",
+			"dist",
+			{
+				appendLine: () => {},
+			} as any,
+			"frontend",
+		);
+		expect(result.ok).toBe(false);
+	});
 });

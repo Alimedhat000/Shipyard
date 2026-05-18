@@ -21,14 +21,18 @@ export async function runBuildStep(
 	containerId: string,
 	app: App,
 	log: LogBuffer,
+	subdirectory = "",
 ): Promise<StepResult> {
 	const buildCmd = app.buildCommand ?? "npm run build";
+	const dir = subdirectory
+		? `/workspace/repo/${subdirectory}`
+		: "/workspace/repo";
 
 	log.appendLine(`Building: ${buildCmd}`);
 
 	const result = await runner.exec(
 		containerId,
-		`cd /workspace/repo && ${buildCmd}`,
+		`cd ${dir} && ${buildCmd}`,
 		(chunk) => log.append(chunk),
 	);
 

@@ -43,6 +43,13 @@
 			"when": 1778626000905,
 			"tag": "0005_parallel_jack_flag",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1779071059753,
+			"tag": "0006_magenta_polaris",
+			"breakpoints": true
 		}
 	]
 }
