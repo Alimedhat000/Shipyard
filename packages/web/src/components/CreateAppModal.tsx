@@ -9,6 +9,7 @@ function validate(input: {
 	name: string;
 	githubRepo: string;
 	buildPack: BuildPackValue;
+	isStatic: boolean;
 	image: string;
 	port: number;
 	outputDir: string;
@@ -36,7 +37,8 @@ function validate(input: {
 	}
 
 	if (
-		(input.buildPack === "static" || input.buildPack === "nixpacks") &&
+		input.buildPack === "nixpacks" &&
+		input.isStatic &&
 		!input.outputDir.trim()
 	) {
 		errs.outputDir = "Output directory is required";
@@ -78,7 +80,8 @@ interface Props {
 }
 
 export function CreateAppModal({ open, onClose }: Props) {
-	const [buildPack, setBuildPack] = useState<BuildPackValue>("static");
+	const [buildPack, setBuildPack] = useState<BuildPackValue>("nixpacks");
+	const [isStatic, setIsStatic] = useState(true);
 	const [name, setName] = useState("");
 	const [githubRepo, setGithubRepo] = useState("");
 	const [branch, setBranch] = useState("main");
@@ -100,7 +103,8 @@ export function CreateAppModal({ open, onClose }: Props) {
 			setName("");
 			setGithubRepo("");
 			setBranch("main");
-			setBuildPack("static");
+			setBuildPack("nixpacks");
+			setIsStatic(true);
 			setBuildCommand("");
 			setOutputDir("dist");
 			setSubdirectory("");
@@ -123,6 +127,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 			name,
 			githubRepo,
 			buildPack,
+			isStatic,
 			image,
 			port,
 			outputDir,
@@ -145,20 +150,21 @@ export function CreateAppModal({ open, onClose }: Props) {
 
 		if (buildCommand) payload.buildCommand = buildCommand;
 
-		if (buildPack === "static") {
-			payload.outputDir = outputDir;
-			payload.isSpa = isSpa;
-			if (subdirectory) payload.subdirectory = subdirectory;
+		if (buildPack === "nixpacks") {
+			payload.isStatic = isStatic;
+			if (isStatic) {
+				payload.outputDir = outputDir;
+				payload.isSpa = isSpa;
+				if (subdirectory) payload.subdirectory = subdirectory;
+			} else {
+				if (runCommand) payload.runCommand = runCommand;
+				if (outputDir) payload.outputDir = outputDir;
+				if (subdirectory) payload.subdirectory = subdirectory;
+			}
 		}
 
 		if (buildPack === "dockerfile") {
 			payload.dockerfilePath = dockerfilePath;
-		}
-
-		if (buildPack === "nixpacks") {
-			if (runCommand) payload.runCommand = runCommand;
-			if (outputDir) payload.outputDir = outputDir;
-			if (subdirectory) payload.subdirectory = subdirectory;
 		}
 
 		if (buildPack === "dockerimage") {
@@ -279,76 +285,124 @@ export function CreateAppModal({ open, onClose }: Props) {
 								className="space-y-3 border-t border-ship-deck/30 pt-4 overflow-hidden"
 							>
 								<AnimatePresence mode="popLayout">
-									{(buildPack === "static" || buildPack === "nixpacks") && (
-										<motion.div
-											key="output-and-build"
-											initial={{ opacity: 0, y: 4 }}
-											animate={{ opacity: 1, y: 0 }}
-											exit={{ opacity: 0, y: 2 }}
-											transition={{ duration: 0.1 }}
-											className="grid grid-cols-2 gap-3"
-										>
-											<div className="space-y-1.5">
-												<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-													Output Dir *
+									{buildPack === "nixpacks" && (
+										<>
+											<motion.div
+												key="static-toggle"
+												initial={{ opacity: 0, y: 4 }}
+												animate={{ opacity: 1, y: 0 }}
+												exit={{ opacity: 0, y: 2 }}
+												transition={{ duration: 0.1 }}
+											>
+												<label className="flex items-center gap-2 cursor-pointer mb-3">
+													<input
+														type="checkbox"
+														checked={isStatic}
+														onChange={(e) => setIsStatic(e.target.checked)}
+														className="w-3.5 h-3.5 accent-ship-buoy"
+													/>
+													<span className="font-mono text-xs text-ship-fog/70">
+														Static Site — serve output directory via nginx
+													</span>
 												</label>
-												<input
-													value={outputDir}
-													onChange={(e) => {
-														setOutputDir(e.target.value);
-														if (fieldErrors.outputDir)
-															setFieldErrors((p) => ({ ...p, outputDir: "" }));
-													}}
-													placeholder="dist"
-													className={inputCls(!!fieldErrors.outputDir)}
-												/>
-												<FieldError msg={fieldErrors.outputDir} />
-											</div>
-											<div className="space-y-1.5">
-												<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-													Subdirectory
-												</label>
-												<input
-													value={subdirectory}
-													onChange={(e) => setSubdirectory(e.target.value)}
-													placeholder="e.g. frontend, packages/web"
-													className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
-												/>
-											</div>
-											<div className="space-y-1.5">
-												<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-													Build Command
-												</label>
-												<input
-													value={buildCommand}
-													onChange={(e) => setBuildCommand(e.target.value)}
-													placeholder="npm run build"
-													className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
-												/>
-											</div>
-										</motion.div>
-									)}
+											</motion.div>
 
-									{buildPack === "static" && (
-										<motion.div
-											key="spa-toggle"
-											initial={{ opacity: 0, y: 4 }}
-											animate={{ opacity: 1, y: 0 }}
-											exit={{ opacity: 0, y: 2 }}
-											transition={{ duration: 0.1 }}
-										>
-											<label className="flex items-center gap-2 cursor-pointer">
-												<input
-													type="checkbox"
-													checked={isSpa}
-													onChange={(e) => setIsSpa(e.target.checked)}
-													className="w-3.5 h-3.5 accent-ship-buoy"
-												/>
-												<span className="font-mono text-xs text-ship-fog/70">
-													SPA fallback (route all 404s to index.html)
-												</span>
-											</label>
-										</motion.div>
+											<motion.div
+												key="output-and-build"
+												initial={{ opacity: 0, y: 4 }}
+												animate={{ opacity: 1, y: 0 }}
+												exit={{ opacity: 0, y: 2 }}
+												transition={{ duration: 0.1 }}
+												className="grid grid-cols-2 gap-3"
+											>
+												{isStatic && (
+													<div className="space-y-1.5">
+														<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+															Output Dir *
+														</label>
+														<input
+															value={outputDir}
+															onChange={(e) => {
+																setOutputDir(e.target.value);
+																if (fieldErrors.outputDir)
+																	setFieldErrors((p) => ({
+																		...p,
+																		outputDir: "",
+																	}));
+															}}
+															placeholder="dist"
+															className={inputCls(!!fieldErrors.outputDir)}
+														/>
+														<FieldError msg={fieldErrors.outputDir} />
+													</div>
+												)}
+												<div className="space-y-1.5">
+													<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+														Subdirectory
+													</label>
+													<input
+														value={subdirectory}
+														onChange={(e) => setSubdirectory(e.target.value)}
+														placeholder="e.g. frontend, packages/web"
+														className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
+													/>
+												</div>
+												<div className="space-y-1.5">
+													<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+														Build Command
+													</label>
+													<input
+														value={buildCommand}
+														onChange={(e) => setBuildCommand(e.target.value)}
+														placeholder="npm run build"
+														className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
+													/>
+												</div>
+											</motion.div>
+
+											{isStatic && (
+												<motion.div
+													key="spa-toggle"
+													initial={{ opacity: 0, y: 4 }}
+													animate={{ opacity: 1, y: 0 }}
+													exit={{ opacity: 0, y: 2 }}
+													transition={{ duration: 0.1 }}
+												>
+													<label className="flex items-center gap-2 cursor-pointer">
+														<input
+															type="checkbox"
+															checked={isSpa}
+															onChange={(e) => setIsSpa(e.target.checked)}
+															className="w-3.5 h-3.5 accent-ship-buoy"
+														/>
+														<span className="font-mono text-xs text-ship-fog/70">
+															SPA fallback (route all 404s to index.html)
+														</span>
+													</label>
+												</motion.div>
+											)}
+
+											{!isStatic && (
+												<motion.div
+													key="run-command"
+													initial={{ opacity: 0, y: 4 }}
+													animate={{ opacity: 1, y: 0 }}
+													exit={{ opacity: 0, y: 2 }}
+													transition={{ duration: 0.1 }}
+													className="space-y-1.5"
+												>
+													<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+														Run Command (override)
+													</label>
+													<input
+														value={runCommand}
+														onChange={(e) => setRunCommand(e.target.value)}
+														placeholder="npm start"
+														className="w-full max-w-xs bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
+													/>
+												</motion.div>
+											)}
+										</>
 									)}
 
 									{buildPack === "dockerfile" && (
