@@ -151,14 +151,12 @@ export async function deployBuildPack(
 				name: "copy",
 				run: () => {
 					const log = new LogBuffer(deploymentId, "copy");
-					const outputDir = subdirectory
-						? path.join(
-								workspacePath,
-								"repo",
-								subdirectory,
-								app.outputDir ?? "dist",
-							)
-						: path.join(workspacePath, "repo", app.outputDir ?? "dist");
+					const outputDir = path.join(
+						workspacePath,
+						"repo",
+						subdirectory,
+						app.outputDir ?? "dist",
+					);
 					return runCopyStep(app.id, outputDir).finally(() =>
 						log.flushOnStepEnd(),
 					);

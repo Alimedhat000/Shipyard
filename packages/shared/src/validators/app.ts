@@ -25,6 +25,14 @@ const appFieldDefs = {
 	subdirectory: z
 		.string()
 		.optional()
+		.refine(
+			(val) => !val || noShellMeta.test(val),
+			"Contains unsafe shell characters",
+		)
+		.refine(
+			(val) => !val?.split("/").includes(".."),
+			"Must not contain parent directory references",
+		)
 		.transform((val) =>
 			val?.trim() ? val.replace(/^\/+|\/+$/g, "") : undefined,
 		),
