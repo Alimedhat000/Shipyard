@@ -30,6 +30,39 @@ export function useCreateApp() {
 	});
 }
 
+export function useApp(appId: string) {
+	return useQuery({
+		queryKey: ["app", appId],
+		queryFn: async () => {
+			const res = await fetch(`/api/apps/${appId}`, { credentials: "include" });
+			if (!res.ok) throw new Error("Failed to fetch app");
+			return res.json();
+		},
+	});
+}
+
+export function useUpdateApp() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: async ({ id, ...data }: Record<string, unknown>) => {
+			const res = await fetch(`/api/apps/${id}`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				credentials: "include",
+				body: JSON.stringify(data),
+			});
+			const body = await res.json();
+			if (!res.ok)
+				throw new Error(body.message ?? body.error ?? "Failed to update app");
+			return body;
+		},
+		onSuccess: (_, vars) => {
+			qc.invalidateQueries({ queryKey: ["app", vars.id] });
+			qc.invalidateQueries({ queryKey: ["apps"] });
+		},
+	});
+}
+
 export function useDeleteApp() {
 	const qc = useQueryClient();
 	return useMutation({

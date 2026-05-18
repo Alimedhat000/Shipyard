@@ -433,27 +433,6 @@ export function CreateAppModal({ open, onClose }: Props) {
 										</motion.div>
 									)}
 
-									{buildPack === "nixpacks" && (
-										<motion.div
-											key="run-command"
-											initial={{ opacity: 0, y: 4 }}
-											animate={{ opacity: 1, y: 0 }}
-											exit={{ opacity: 0, y: 2 }}
-											transition={{ duration: 0.1 }}
-											className="space-y-1.5"
-										>
-											<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-												Run Command (override)
-											</label>
-											<input
-												value={runCommand}
-												onChange={(e) => setRunCommand(e.target.value)}
-												placeholder="npm start"
-												className="w-full max-w-xs bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
-											/>
-										</motion.div>
-									)}
-
 									{buildPack === "dockerimage" && (
 										<motion.div
 											key="image-field"
