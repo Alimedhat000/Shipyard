@@ -17,6 +17,7 @@ const safeColumns = {
 	githubRepo: apps.githubRepo,
 	buildCommand: apps.buildCommand,
 	outputDir: apps.outputDir,
+	subdirectory: apps.subdirectory,
 	branch: apps.branch,
 	buildTimeout: apps.buildTimeout,
 	activeDeploymentId: apps.activeDeploymentId,

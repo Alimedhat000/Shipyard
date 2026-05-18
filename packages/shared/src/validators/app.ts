@@ -22,6 +22,12 @@ const appFieldDefs = {
 	buildPack: z.enum(BUILD_PACKS),
 	buildCommand: z.string().optional(),
 	outputDir: z.string().optional(),
+	subdirectory: z
+		.string()
+		.optional()
+		.transform((val) =>
+			val?.trim() ? val.replace(/^\/+|\/+$/g, "") : undefined,
+		),
 	port: z.number().int().positive(),
 	runCommand: safeCommandSchema.optional(),
 	installCommand: installCommandSchema.optional(),

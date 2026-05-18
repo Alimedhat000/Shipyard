@@ -12,6 +12,7 @@ function validate(input: {
 	image: string;
 	port: number;
 	outputDir: string;
+	subdirectory: string;
 	dockerfilePath: string;
 }): Record<string, string> {
 	const errs: Record<string, string> = {};
@@ -83,6 +84,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 	const [branch, setBranch] = useState("main");
 	const [buildCommand, setBuildCommand] = useState("");
 	const [outputDir, setOutputDir] = useState("dist");
+	const [subdirectory, setSubdirectory] = useState("");
 	const [port, setPort] = useState(80);
 	const [runCommand, setRunCommand] = useState("");
 	const [dockerfilePath, setDockerfilePath] = useState("./Dockerfile");
@@ -101,6 +103,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 			setBuildPack("static");
 			setBuildCommand("");
 			setOutputDir("dist");
+			setSubdirectory("");
 			setPort(80);
 			setRunCommand("");
 			setDockerfilePath("./Dockerfile");
@@ -123,6 +126,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 			image,
 			port,
 			outputDir,
+			subdirectory,
 			dockerfilePath,
 		});
 		setFieldErrors(errs);
@@ -144,6 +148,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 		if (buildPack === "static") {
 			payload.outputDir = outputDir;
 			payload.isSpa = isSpa;
+			if (subdirectory) payload.subdirectory = subdirectory;
 		}
 
 		if (buildPack === "dockerfile") {
@@ -153,6 +158,7 @@ export function CreateAppModal({ open, onClose }: Props) {
 		if (buildPack === "nixpacks") {
 			if (runCommand) payload.runCommand = runCommand;
 			if (outputDir) payload.outputDir = outputDir;
+			if (subdirectory) payload.subdirectory = subdirectory;
 		}
 
 		if (buildPack === "dockerimage") {
@@ -297,6 +303,17 @@ export function CreateAppModal({ open, onClose }: Props) {
 													className={inputCls(!!fieldErrors.outputDir)}
 												/>
 												<FieldError msg={fieldErrors.outputDir} />
+											</div>
+											<div className="space-y-1.5">
+												<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+													Subdirectory
+												</label>
+												<input
+													value={subdirectory}
+													onChange={(e) => setSubdirectory(e.target.value)}
+													placeholder="e.g. frontend, packages/web"
+													className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
+												/>
 											</div>
 											<div className="space-y-1.5">
 												<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">

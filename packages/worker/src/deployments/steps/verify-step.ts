@@ -46,13 +46,16 @@ export async function runVerifyStep(
 	deploymentId: string,
 	outputDir: string,
 	log: LogBuffer,
+	subdirectory = "",
 ): Promise<StepResult> {
 	const workspace = path.join(
 		getEnv().BUILD_WORKSPACE_DIR,
 		deploymentId,
 		"repo",
 	);
-	const target = path.resolve(workspace, outputDir);
+	const target = subdirectory
+		? path.resolve(workspace, subdirectory, outputDir)
+		: path.resolve(workspace, outputDir);
 
 	log.appendLine(`Verifying output directory: ${outputDir}`);
 
