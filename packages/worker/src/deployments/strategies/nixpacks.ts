@@ -41,6 +41,11 @@ function runNixpacksBuild(
 		const imageTag = `shipyard-${app.id}:${workspacePath.split("/").pop()}`;
 		const args = ["build", repoDir, "--name", imageTag];
 
+		// Stable cache key per app so nixpacks restores ~/.npm, ~/.cache, etc.
+		// between deploys instead of treating each build as a fresh project.
+		args.push("--cache-key", `shipyard-${app.id}`);
+		args.push("--inline-cache");
+
 		if (isStatic) {
 			args.push("--no-error-without-start");
 		}
@@ -74,7 +79,7 @@ function runNixpacksBuild(
 				const output = Buffer.concat(chunks).toString();
 				reject(
 					new Error(
-						`Nixpacks build failed (exit ${code}): ${output.slice(0, 500)}`,
+						`Nixpacks build failed (exit ${code}): ${output.slice(0, 2000)}`,
 					),
 				);
 			}
