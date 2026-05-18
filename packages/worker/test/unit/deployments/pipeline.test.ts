@@ -116,8 +116,8 @@ describe("DeploymentOrchestrator", () => {
 		}
 
 		afterEach(() => {
-			fs.rmSync(BUILD_DIR, { recursive: true, force: true });
-			fs.rmSync(SITES_DIR, { recursive: true, force: true });
+			fs.rmSync(BUILD_DIR, { recursive: true, force: true, maxRetries: 3 });
+			fs.rmSync(SITES_DIR, { recursive: true, force: true, maxRetries: 3 });
 		});
 
 		it("runs all steps and activates deployment on success", async () => {
