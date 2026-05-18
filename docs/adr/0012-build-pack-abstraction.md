@@ -1,4 +1,4 @@
-# ADR-0012: Build Pack Abstraction — Five Build Pack Types
+# ADR-0012: Build Pack Abstraction — Four Build Pack Types
 
 ## Status
 
@@ -6,110 +6,61 @@ Accepted (updated)
 
 ## Context
 
-The original Shipyard spec scoped the project to static sites only, with a simple `package.json` dependency scan for framework detection (Vite, CRA, Next.js, Vue). During triage of Issue #3 (app creation), two things became clear:
+The original Shipyard spec scoped the project to static sites only. During triage of Issue #3 (app creation), two things became clear:
 
-1. The maintainer's goal is a general-purpose deployment platform (Coolify/Dokploy-like), not a static-site-only tool.
-2. Platforms like Coolify use a **build pack** model where users choose how their project is built: Nixpacks (auto-detect), static (nginx), Dockerfile (custom), Docker Compose (multi-service), or pre-built Docker image.
+1. The maintainer's goal is a general-purpose deployment platform (Coolify/Dokploy-like).
+2. Platforms like Coolify use a **build pack** model where users choose how their project is built.
 
-The build pack is defined as a PostgreSQL enum on the `apps` table:
+Originally five build pack types were defined: `nixpacks`, `static`, `dockerfile`, `dockercompose`, `dockerimage`. The `static` and `nixpacks` packs were later merged — a "static site" is now a mode of nixpacks (isStatic=true), not a separate build path.
+
+## Decision
+
+### Build Pack Enum
 
 ```sql
 CREATE TYPE build_pack AS ENUM (
   'nixpacks',
-  'static',
   'dockerfile',
   'dockercompose',
   'dockerimage'
 );
 ```
 
-## Decision
-
-### Build Pack Enum
-
-The deployment engine routes to one of five implementations based on the app's `build_pack` field:
-
 | Value | Description | Use Case |
 |-------|-------------|----------|
-| `nixpacks` | Nixpacks auto-detects framework from repo, generates Dockerfile, builds and runs it | Most applications; zero-config deployments |
-| `static` | nginx:alpine serves pre-built static assets | SPAs, documentation sites, plain HTML |
+| `nixpacks` | Nixpacks auto-detects framework, builds image. Serves via nginx (isStatic=true) or runs as container (isStatic=false) | Most applications; zero-config deployments |
 | `dockerfile` | User provides Dockerfile in repo, Shipyard builds and runs it | Custom builds with specific OS deps |
 | `dockercompose` | User provides docker-compose.yml, Shipyard deploys the stack | Multi-service apps with bundled services |
 | `dockerimage` | Pull a pre-built image from a registry and run it | Deploy without source/build pipeline |
 
-### Build Pack Interface
+### Nixpacks Strategy
 
-```typescript
-interface BuildPackResult {
-  imageName: string;       // Built or pulled Docker image name
-  containerPort: number;   // Port to expose
-  outputDir?: string;      // For static: dir to pull assets from
-  healthCheck?: string;    // Optional health check path
-  composeFile?: string;    // For dockercompose: the compose file content
-}
-```
+Nixpacks handles both static sites and server apps:
 
-### Build Pack Implementations
+| Mode | `isStatic` | Flow | Caddy Route |
+|------|-----------|------|-------------|
+| Static site | `true` (default) | nixpacks build → extract output dir → serve via nginx file_server with pass_thru SPA fallback | File route |
+| Server app | `false` | nixpacks build → run long-lived container → reverse proxy | Proxy route |
 
-#### 1. Nixpacks
+**Flow:** Git clone → `nixpacks build --cache-key shipyard-{appId} --inline-cache` → (static: extract /app/{outputDir} to sites dir) or (server: runLongLived) → Caddy route
 
-- **Flow:** Git clone → `nixpacks build .` (generates Dockerfile) → `docker build` → `docker run`
-- **Detection:** Nixpacks auto-detects framework from repo contents (Next.js, Django, Rails, Go, etc.)
-- **Config:** User can override build/start commands and output directory
-- **Dependency:** Requires `nixpacks` binary installed on the worker host
+**Caching:** `--cache-key` uses a stable per-app identifier so nixpacks restores `~/.npm` and `~/.cache` between deploys. `--inline-cache` embeds Docker layer metadata for faster rebuilds.
 
-#### 2. Static
+**Subdirectory support:** `--subdirectory` clones the full repo but nixpacks builds from `{repo}/{subdirectory}`. Used for monorepos.
 
-- **Base image:** `nginx:alpine`
-- **Flow:** Clone → (optional build command) → copy assets from `output_dir` to `/usr/share/nginx/html/` → serve on port 80
-- **Config:** User specifies `output_dir` (default: `/dist`), SPA fallback toggle, custom nginx config
-- **No framework detection** — assumes pre-built assets
+### SPA Fallback
 
-#### 3. Dockerfile
-
-- **Flow:** Git clone → `docker build -f Dockerfile` → `docker run`
-- **Config:** User commits a `Dockerfile` in their repo. Shipyard builds it as-is.
-- **Port:** User configures the container port Shipyard should route to.
-
-#### 4. Docker Compose
-
-- **Flow:** Git clone → `docker compose -f docker-compose.yml up -d`
-- **Config:** User provides `docker-compose.yml` in their repo.
-- **Use case:** Apps that bundle a database, cache, or need multiple services.
-- **Routing:** Caddy routes to the primary service's port.
-
-#### 5. Docker Image
-
-- **Flow:** `docker pull <image>` → `docker run`
-- **Config:** User specifies image name + tag from a registry (Docker Hub, GHCR, etc.)
-- **No repository needed** — deploy without connecting a git repo.
-- **Use case:** Deploy existing images without rebuilding from source.
-
-### User Configuration Per App
-
-| Field | nixpacks | static | dockerfile | dockercompose | dockerimage |
-|-------|----------|--------|------------|---------------|-------------|
-| `output_dir` | Optional | Required | N/A | N/A | N/A |
-| `build_command` | Override | Optional | N/A | N/A | N/A |
-| `run_command` | Override | N/A | N/A | N/A | N/A |
-| `port` | Optional | 80 | Required | Optional | Required |
-| `dockerfile_path` | N/A | N/A | `./Dockerfile` | N/A | N/A |
-| `image` | N/A | N/A | N/A | N/A | Required |
-| `compose_file` | N/A | N/A | N/A | `docker-compose.yml` | N/A |
-| `is_spa` | N/A | Configurable | N/A | N/A | N/A |
-| `custom_nginx_config` | N/A | Optional | N/A | N/A | N/A |
+Static sites with `isSpa=true` use Caddy's `file_server` with `pass_thru: true`, followed by a rewrite to `/index.html`. This avoids the broken subroute+errors pattern that doesn't work in Caddy v2.
 
 ## Consequences
 
-- **Five build paths** share the same deployment state machine. Only execution differs.
-- **No migration cost** when adding a new build pack — implement the interface, add the enum value.
-- **Nixpacks is optional** — don't need the binary unless using that pack.
-- **Docker Compose adds significant complexity** — multi-container lifecycle, networking, service dependencies. Post-MVP.
-- **Docker Image is the simplest** — just pull and run. No build step at all.
-- **Container routing required** — once you support long-lived containers, Caddy needs to reverse-proxy to them. ADR-0006 needs updating.
+- **Four build paths** share the same deployment state machine. Only execution differs.
+- **Nixpacks replaces the static build pack** — one fewer strategy to maintain.
+- **Build caching** speeds up repeated deploys (~60% faster on npm installs).
+- **Old step files** (clone, install, build, verify, copy) are marked dead code and will be removed after nixpacks stabilises.
 
 ## Alternatives Considered
 
-- **Three packs only (static, dockerfile, nixpacks) (rejected):** Misses dockercompose for multi-service apps and dockerimage for pre-built image deploys.
-- **Merge dockerimage into dockerfile (rejected):** Different semantics — one builds from source, one pulls a pre-built artifact. Different validation, different config.
-- **Skip dockercompose for MVP (accepted):** Will be implemented after the single-container packs are stable. Multi-container orchestration is a separate complexity class.
+- **Keep static as separate pack (rejected):** Duplicate of nixpacks with isStatic=true. Manual step pipeline was fragile (missing package managers like pnpm).
+- **Railpack instead of Nixpacks (noted):** Nixpacks is in maintenance mode, Railpack is the successor. Will migrate when Railpack matures.
+- **--provider docker flag (noted):** May be needed to bypass broken Nix derivations for certain language packs like bun.

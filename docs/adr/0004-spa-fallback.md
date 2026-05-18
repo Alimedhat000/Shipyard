@@ -1,4 +1,4 @@
-# ADR-0004: SPA Fallback via nginx and Caddy
+# ADR-0004: SPA Fallback
 
 ## Status
 
@@ -8,32 +8,32 @@ Accepted (updated)
 
 Shipyard deploys static sites (React, Vue, Svelte, etc.) that use client-side routing. When a user navigates to `/dashboard` directly, the browser requests that path. If there is no literal file, the server must return `index.html` so the SPA can boot and handle routing.
 
-The API previously served `public/index.html` as a fallback, but this mixed concerns — the API should not serve static files. The separation is:
-
-- **Web container** (nginx) serves the SPA built output
-- **Caddy** reverse-proxies user domains to Garage storage
-- **API** serves only REST endpoints
-
 ## Decision
 
-### Development
+### Caddy pass_thru
 
-Vite dev server handles SPA fallback natively. The API has no static file serving.
+Static sites with SPA mode use Caddy's `file_server` with `pass_thru: true`:
 
-### Production
+```json
+{
+  "handle": [
+    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}", "pass_thru": true},
+    {"handler": "rewrite", "uri": "/index.html"},
+    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}"}
+  ]
+}
+```
 
-nginx in the web container serves the SPA via `try_files $uri $uri/ /index.html`. The `nginx.conf` proxies `/api/` and `/health` to the API container.
+The first `file_server` attempts to serve the file. On 404, `pass_thru: true` lets the request fall through to the next handler, which rewrites to `/index.html` and serves it via a second `file_server`.
 
-Caddy routes custom domains to Garage storage with its own `handle_errors` for SPA fallback when serving from object storage.
+This replaced a broken `subroute` + `errors` pattern that Caddy v2 doesn't support at the route level.
 
 ## Consequences
 
-- Clean separation: API never deals with static files.
-- Web container is self-contained SPA serving with its own nginx.
-- Caddy handles domain routing independently.
+- Clean SPA routing without custom nginx or subrequest logic.
 - One caveat: genuine 404s (missing static assets) return `index.html` with 200 status. Standard SPA behavior.
 
 ## Alternatives Considered
 
-- **API serves SPA (rejected):** Mixed concerns. API container becomes responsible for frontend.
-- **Single Caddy for everything (considered for v2):** Caddy could serve the SPA and proxy API. Simpler topology but requires Caddy config complexity.
+- **subroute + errors (rejected):** Caddy v2 doesn't support `errors` at the route level. The subroute errors pattern doesn't bubble 404s correctly.
+- **Custom nginx container (not adopted for Shipyard):** Dokploy uses Traefik for SPA routing. Shipyard uses Caddy exclusively.
