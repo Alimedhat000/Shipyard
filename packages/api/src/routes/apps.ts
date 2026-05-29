@@ -162,6 +162,7 @@ export function createAppsRouter() {
 			);
 
 			await myQueue.add("deploy", {
+				type: "deploy",
 				deploymentId: deployment.id,
 				applicationId: req.params.id,
 				titleLog: "Manual deploy",

@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import {
 	apps,
 	buildJobs,
@@ -7,7 +5,6 @@ import {
 	deployments,
 } from "@shipyard/shared/schema";
 import { asc, desc, eq } from "drizzle-orm";
-import { getEnv } from "../config/env.js";
 import { db } from "../plugins/db.js";
 
 const safeColumns = {
@@ -53,17 +50,28 @@ export async function createDeploymentWithBuildJob(appId: string) {
 }
 
 /**
- * Lists deployments for an app, newest first.
+ * Lists deployments for an app, newest first, along with the app's active
+ * deployment ID so the frontend can highlight which deployment is live.
  *
  * @param appId - The app to list deployments for
- * @returns Array of deployment objects
+ * @returns Object containing deployments array and activeDeploymentId
  */
 export async function listDeployments(appId: string) {
-	return db
+	const [app] = await db
+		.select({ activeDeploymentId: apps.activeDeploymentId })
+		.from(apps)
+		.where(eq(apps.id, appId));
+
+	const list = await db
 		.select(safeColumns)
 		.from(deployments)
 		.where(eq(deployments.appId, appId))
 		.orderBy(desc(deployments.createdAt));
+
+	return {
+		deployments: list,
+		activeDeploymentId: app?.activeDeploymentId ?? null,
+	};
 }
 
 /**
@@ -118,15 +126,6 @@ export async function rollbackDeployment(
 		);
 	}
 
-	const siteDir = getEnv().SITES_DIR;
-	const depDir = path.join(siteDir, deployment.appId, deployment.id);
-	if (!fs.existsSync(depDir)) {
-		throw Object.assign(
-			new Error("Cannot rollback: deployment directory does not exist on disk"),
-			{ statusCode: 410 },
-		);
-	}
-
 	const [app] = await db
 		.select()
 		.from(apps)
@@ -140,21 +139,6 @@ export async function rollbackDeployment(
 			statusCode: 409,
 		});
 	}
-
-	// Swap symlink atomically
-	const currentPath = path.join(siteDir, deployment.appId, "current");
-	try {
-		fs.unlinkSync(currentPath);
-	} catch {
-		// Symlink doesn't exist yet (shouldn't happen if there's an active deployment)
-	}
-	fs.symlinkSync(deployment.id, currentPath, "dir");
-
-	// Update DB pointer
-	await db
-		.update(apps)
-		.set({ activeDeploymentId: deployment.id, updatedAt: new Date() })
-		.where(eq(apps.id, app.id));
 
 	return { deployment, app } as {
 		deployment: typeof deployments.$inferSelect | null;

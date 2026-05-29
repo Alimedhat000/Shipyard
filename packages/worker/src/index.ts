@@ -17,6 +17,7 @@ import { db } from "./config/db.js";
 import { getEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { processDeployment } from "./deployments/processor.js";
+import { processRollback } from "./deployments/rollback.js";
 import {
 	upsertFileRoute,
 	upsertProxyRoute,
@@ -171,6 +172,15 @@ const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const worker = new Worker<DeploymentJob>(
 	QUEUE_NAME,
 	async (job) => {
+		if (job.data.type === "rollback") {
+			logger.info(
+				{ deploymentId: job.data.deploymentId },
+				"Processing rollback",
+			);
+			await processRollback(db, env.SITES_DIR, job.data.deploymentId);
+			logger.info({ deploymentId: job.data.deploymentId }, "Rollback complete");
+			return;
+		}
 		logger.info(
 			{ deploymentId: job.data.deploymentId },
 			"Processing deployment",
