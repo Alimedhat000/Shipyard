@@ -30,6 +30,11 @@ const envSchema = z.object({
 		.default("false")
 		.transform((v) => v === "true")
 		.pipe(z.boolean()),
+	DEPLOYMENT_KEEP_COUNT: z
+		.string()
+		.default("5")
+		.transform((v) => parseInt(v, 10))
+		.pipe(z.number().int().positive()),
 });
 
 export type Env = z.infer<typeof envSchema>;

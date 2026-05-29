@@ -14,7 +14,7 @@ describe("Caddy config builder", () => {
 			expect(route.handle).toHaveLength(1);
 			expect(route.handle[0]).toMatchObject({
 				handler: "file_server",
-				root: "/var/lib/shipyard/sites/app-1",
+				root: "/var/lib/shipyard/sites/app-1/current",
 			});
 		});
 
@@ -25,7 +25,7 @@ describe("Caddy config builder", () => {
 			expect(route.handle).toHaveLength(3);
 			expect(route.handle[0]).toMatchObject({
 				handler: "file_server",
-				root: "/var/lib/shipyard/sites/app-2",
+				root: "/var/lib/shipyard/sites/app-2/current",
 				pass_thru: true,
 			});
 			expect(route.handle[1]).toMatchObject({
@@ -34,7 +34,7 @@ describe("Caddy config builder", () => {
 			});
 			expect(route.handle[2]).toMatchObject({
 				handler: "file_server",
-				root: "/var/lib/shipyard/sites/app-2",
+				root: "/var/lib/shipyard/sites/app-2/current",
 			});
 		});
 

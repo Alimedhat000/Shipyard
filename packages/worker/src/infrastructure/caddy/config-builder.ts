@@ -11,7 +11,7 @@ export function buildRouteConfig(
 	appId: string,
 	isSpa: boolean,
 ): Record<string, unknown> {
-	const root = `${SITES_ROOT}/${appId}`;
+	const root = `${SITES_ROOT}/${appId}/current`;
 
 	if (!isSpa) {
 		return {

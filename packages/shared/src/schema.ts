@@ -120,6 +120,7 @@ export const deployments = pgTable(
 		outputDir: varchar("output_dir", { length: 255 }),
 		startedAt: timestamp("started_at"),
 		finishedAt: timestamp("finished_at"),
+		prunedAt: timestamp("pruned_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => ({
