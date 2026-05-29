@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (updated)
+Accepted (updated by ADR-0014)
 
 ## Context
 
@@ -30,9 +30,9 @@ POST /config/apps/http/servers/srv0/routes  → create new route
 
 Static config generation at deploy time:
 
-1. Deployment succeeds (or rollback triggered)
-2. Read `active_deployment_id` from DB
-3. Generate Caddy JSON config:
+1. First deploy: generate and send Caddy JSON config (replaces any previous route for `app-{appId}`)
+2. Subsequent deploys: Caddy root is already `sites/{appId}/current` — no Caddy API call needed for static sites
+3. Rollback: symlink swap (per ADR-0014) — no Caddy API call at all
 
 **Static sites (isStatic=true):**
 ```json
@@ -40,9 +40,9 @@ Static config generation at deploy time:
   "@id": "app-{appId}",
   "match": [{"host": ["myapp.bigboss.dev"]}],
   "handle": [
-    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}", "pass_thru": true},
+    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}/current", "pass_thru": true},
     {"handler": "rewrite", "uri": "/index.html"},
-    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}"}
+    {"handler": "file_server", "root": "/var/lib/shipyard/sites/{appId}/current"}
   ],
   "terminal": true
 }
@@ -68,7 +68,7 @@ The `pass_thru` on the first `file_server` lets unmatched requests fall through 
 ## Consequences
 
 - Zero latency overhead per request (no DB query, no subrequest).
-- Rollback is instant from user perspective (config reload is ~milliseconds).
+- Rollback is instant from user perspective (symlink swap, no Caddy interaction per ADR-0014).
 - Adding/removing apps requires config regeneration + reload (acceptable for low-write system).
 - Adding custom domains later requires regenerating all configs (known trade-off, acceptable).
 - No need for OpenResty or Lua — plain Caddy works.

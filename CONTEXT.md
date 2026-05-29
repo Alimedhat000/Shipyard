@@ -93,28 +93,21 @@ All five build packs produce long-lived containers with health checks and automa
 
 ## Storage & Routing
 
-### Object Storage
+### Volume-Based Storage
 
-S3-compatible blob storage for deployed artifacts. Abstracted behind an `uploadToObjectStorage()` interface using the AWS S3 SDK with `forcePathStyle: true`. Garage for local dev; Garage (self-hosted) or Cloudflare R2 for production. No hardcoded S3-specific logic.
+A shared Docker named volume (`shipyard_sites`) mounted in the worker and Caddy containers. Each deployment's build output lives at `sites/{appId}/{deploymentId}/`. A symlink at `sites/{appId}/current` points to the active deployment. Caddy's `file_server` root is permanently `sites/{appId}/current`.
 
-### S3 Path Structure
+### Symlink Activation
 
-`/users/{userId}/apps/{appId}/deployments/{deploymentId}/{filepath}`
+A symlink at `sites/{appId}/current` points to the currently-active deployment's artifact directory. Swap the symlink atomically on deploy or rollback — no Caddy API call needed. Caddy root is set once at first deploy and never changes.
 
 ### Deployment Retention
 
-The newest 5 deployments per App are kept in object storage. Older deployments are deleted automatically after each successful deploy. Enables rollback without unlimited storage growth.
-
-### Deployment Retention Rules
-
-- Keep metadata in database forever (deployments table, build_jobs table, deployment_logs)
-- Delete files from object storage only (after successful deploy)
-- Check before deleting: if deployment.id == app.active_deployment_id, skip delete
-- Deletion is async background job (queued after deploy succeeds)
+After each successful deploy, the newest `KEEP_COUNT` (default 5) deployment subdirectories per App are kept. Older directories are deleted. Building deployments are excluded from pruning. Pruned deployments have `prunedAt` set in the database for queryable rollback eligibility.
 
 ### Active Deployment
 
-The currently-live Deployment for an App, referenced by `active_deployment_id` in the App record. Rollback changes this pointer without modifying object storage.
+The currently-live Deployment for an App, referenced by `active_deployment_id` in the App record. Rollback changes this pointer AND swaps the `current` symlink to the target deployment's artifact directory. See ADR-0014.
 
 ### SPA Fallback
 
@@ -123,6 +116,8 @@ Every `404` response from Caddy returns `index.html`, enabling client-side routi
 ### Caddy Config Generation
 
 Dynamic Caddy configuration via JSON API at deploy time (not at request time). Config is sent to Caddy's `/config/` API endpoint. After update, Caddy automatically reloads. Built-in auto-HTTPS with Let's Encrypt for wildcard certs.
+
+For static sites, Caddy config is set once at first deploy (root: `sites/{appId}/current`). Subsequent deploys and rollbacks update the symlink — no Caddy API call needed. See ADR-0014.
 
 ## Infrastructure Philosophy
 
@@ -142,7 +137,7 @@ Redis-backed job queue via BullMQ. A Job contains only the `deployment_id`; all 
 
 ### Worker
 
-A Node.1.js process that connects to BullMQ, picks up Jobs, executes the build pipeline, updates Deployment status in the database, and regenerates the Caddy config. Stateless per-job execution.
+A Node.js process that connects to BullMQ, picks up Jobs, executes the build pipeline, updates Deployment status in the database, and generates Caddy config on first deploy (static sites) or on every deploy (server containers). Stateless per-job execution.
 
 ### Heartbeat
 
