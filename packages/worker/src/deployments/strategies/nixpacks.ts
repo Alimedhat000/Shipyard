@@ -103,6 +103,7 @@ async function extractStaticOutput(
 	const containerName = `shipyard-extract-${appId}-${Date.now()}`;
 	const sitesDir = getEnv().SITES_DIR;
 	const sitesPath = getDeploymentDir(sitesDir, appId, deploymentId);
+	fs.mkdirSync(sitesPath, { recursive: true });
 
 	try {
 		execSync(`docker create --name ${containerName} ${imageTag}`, {

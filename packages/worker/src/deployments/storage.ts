@@ -33,11 +33,7 @@ export function activateDeployment(
 		throw new Error(`Deployment directory ${target} does not exist`);
 	}
 
-	try {
-		fs.unlinkSync(symlinkPath);
-	} catch {
-		// Symlink doesn't exist yet (first deploy)
-	}
+	fs.rmSync(symlinkPath, { force: true, recursive: true });
 
 	fs.symlinkSync(deploymentId, symlinkPath, "dir");
 }
