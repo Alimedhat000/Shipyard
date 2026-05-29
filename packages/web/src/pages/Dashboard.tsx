@@ -188,6 +188,7 @@ interface AppData {
 	branch: string;
 	buildPack: string;
 	status?: string;
+	activeDeploymentId?: string | null;
 	activeUrl?: string | null;
 	createdAt: string;
 }
@@ -198,10 +199,11 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 	const [showDeployments, setShowDeployments] = useState(false);
 	const [deployVersion, setDeployVersion] = useState(0);
 	const [rollbackTarget, setRollbackTarget] = useState<string | null>(null);
-	const { data: deployments, latestDeployment } = useDeployments(
-		app.id,
-		showDeployments,
-	);
+	const {
+		data: deployments,
+		latestDeployment,
+		activeDeploymentId,
+	} = useDeployments(app.id, showDeployments);
 	const deployApp = useDeployApp();
 	const rollbackDeployment = useRollbackDeployment();
 
@@ -348,7 +350,9 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 							return (
 								<div
 									key={d.id}
-									className="flex items-center gap-3 px-4 py-2 border-b border-ship-deck/20 last:border-b-0 group"
+									className={`flex items-center gap-3 px-4 py-2 border-b border-ship-deck/20 last:border-b-0 group ${
+										d.id === activeDeploymentId ? "bg-ship-buoy/[0.03]" : ""
+									}`}
 								>
 									<span
 										className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -358,6 +362,11 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 									<span className="font-mono text-[11px] text-ship-fog/70 uppercase">
 										{d.status}
 									</span>
+									{d.id === activeDeploymentId && (
+										<span className="font-mono text-[10px] tracking-widest text-ship-buoy/80 border border-ship-buoy/30 px-1.5 py-0.5">
+											ACTIVE
+										</span>
+									)}
 									{isRollbackable && !isTarget && (
 										<button
 											type="button"

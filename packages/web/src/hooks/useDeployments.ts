@@ -7,8 +7,13 @@ export interface Deployment {
 	createdAt: string;
 }
 
+interface DeploymentsResponse {
+	deployments: Deployment[];
+	activeDeploymentId: string | null;
+}
+
 export function useDeployments(appId: string, isOpen: boolean) {
-	const query = useQuery<Deployment[]>({
+	const query = useQuery<DeploymentsResponse>({
 		queryKey: ["deployments", appId],
 		queryFn: async () => {
 			const res = await fetch(`/api/apps/${appId}/deployments`, {
@@ -18,20 +23,24 @@ export function useDeployments(appId: string, isOpen: boolean) {
 			return res.json();
 		},
 		enabled: isOpen,
-		refetchInterval: (q) => {
-			if (!isOpen) return false;
-			const data = q.state.data;
-			if (!data) return false;
-			const hasActive = data.some(
-				(d) => d.status === "pending" || d.status === "building",
-			);
-			return hasActive ? 3000 : false;
+		refetchInterval: isOpen ? 5000 : false,
+		select: (data) => {
+			if (Array.isArray(data)) {
+				const list = data as unknown as Deployment[];
+				return {
+					deployments: list,
+					activeDeploymentId: null,
+				} as DeploymentsResponse;
+			}
+			return data as DeploymentsResponse;
 		},
 	});
 
-	const latestDeployment = query.data?.[0] ?? null;
+	const deployments = query.data?.deployments ?? null;
+	const activeDeploymentId = query.data?.activeDeploymentId ?? null;
+	const latestDeployment = deployments?.[0] ?? null;
 
-	return { ...query, latestDeployment };
+	return { ...query, data: deployments, latestDeployment, activeDeploymentId };
 }
 
 export function useDeployApp() {
