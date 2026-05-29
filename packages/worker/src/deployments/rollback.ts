@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import { apps, deployments } from "@shipyard/shared";
 import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
