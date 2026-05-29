@@ -1,6 +1,35 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const TEST_ORG_ID = "test-org-id";
+const TEST_SITES_DIR = path.join(
+	os.tmpdir(),
+	"shipyard-test",
+	"deployments-api",
+);
+
+vi.mock("../../src/config/env.js", () => ({
+	getEnv: () => ({
+		DATABASE_URL: "postgres://test:test@localhost:5432/test",
+		REDIS_URL: "redis://localhost:6379",
+		CADDY_ADMIN_URL: "http://localhost:2019",
+		GITHUB_CLIENT_ID: "test",
+		GITHUB_CLIENT_SECRET: "test",
+		GITHUB_CALLBACK_URL: "http://localhost:3000/auth/github/callback",
+		API_SECRET: "test-secret",
+		SESSION_SECRET: "test-session-secret",
+		ENCRYPTION_KEY:
+			"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		BASE_DOMAIN: "test.dev",
+		AUTO_HTTPS: false,
+		SESSION_TTL: "604800",
+		NODE_ENV: "test",
+		PORT: "3000",
+		SITES_DIR: TEST_SITES_DIR,
+	}),
+}));
 
 vi.mock("drizzle-orm", () => ({
 	eq: vi.fn().mockImplementation((col: unknown, val: unknown) => ({
@@ -55,7 +84,20 @@ describe("deployment service", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		fs.mkdirSync(path.join(TEST_SITES_DIR, "app-1", "dep-1"), {
+			recursive: true,
+		});
+		fs.mkdirSync(path.join(TEST_SITES_DIR, "app-1", "dep-active"), {
+			recursive: true,
+		});
+		fs.mkdirSync(path.join(TEST_SITES_DIR, "app-1", "dep-target"), {
+			recursive: true,
+		});
 		deploymentService = await import("../../src/services/deployments.js");
+	});
+
+	afterEach(() => {
+		fs.rmSync(TEST_SITES_DIR, { recursive: true, force: true });
 	});
 
 	describe("rollbackDeployment", () => {
