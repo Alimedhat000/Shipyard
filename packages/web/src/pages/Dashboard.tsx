@@ -9,6 +9,7 @@ import {
 	type Deployment,
 	useDeployApp,
 	useDeployments,
+	useRollbackDeployment,
 } from "../hooks/useDeployments";
 
 const BUILD_PACK_COLORS: Record<string, string> = {
@@ -196,11 +197,13 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const [showDeployments, setShowDeployments] = useState(false);
 	const [deployVersion, setDeployVersion] = useState(0);
+	const [rollbackTarget, setRollbackTarget] = useState<string | null>(null);
 	const { data: deployments, latestDeployment } = useDeployments(
 		app.id,
 		showDeployments,
 	);
 	const deployApp = useDeployApp();
+	const rollbackDeployment = useRollbackDeployment();
 
 	const deployStatus = latestDeployment?.status ?? "idle";
 	const packColor =
@@ -338,24 +341,67 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 							</span>
 						</div>
 					) : (
-						deployments.map((d: Deployment) => (
-							<div
-								key={d.id}
-								className="flex items-center gap-3 px-4 py-2 border-b border-ship-deck/20 last:border-b-0"
-							>
-								<span
-									className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-										STATUS_DOT[d.status] ?? STATUS_DOT.idle
-									}`}
-								/>
-								<span className="font-mono text-[11px] text-ship-fog/70 uppercase">
-									{d.status}
-								</span>
-								<span className="font-mono text-[11px] text-ship-fog/40 ml-auto">
-									{new Date(d.createdAt).toLocaleString()}
-								</span>
-							</div>
-						))
+						deployments.map((d: Deployment) => {
+							const isRollbackable = d.status === "success" && !d.prunedAt;
+							const isTarget = rollbackTarget === d.id;
+
+							return (
+								<div
+									key={d.id}
+									className="flex items-center gap-3 px-4 py-2 border-b border-ship-deck/20 last:border-b-0 group"
+								>
+									<span
+										className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+											STATUS_DOT[d.status] ?? STATUS_DOT.idle
+										}`}
+									/>
+									<span className="font-mono text-[11px] text-ship-fog/70 uppercase">
+										{d.status}
+									</span>
+									{isRollbackable && !isTarget && (
+										<button
+											type="button"
+											onClick={() => setRollbackTarget(d.id)}
+											className="font-mono text-[10px] tracking-widest text-ship-buoy/40 hover:text-ship-buoy opacity-0 group-hover:opacity-100 transition-all"
+										>
+											ROLLBACK
+										</button>
+									)}
+									{isTarget && (
+										<div className="flex items-center gap-1.5">
+											<span className="font-mono text-[10px] text-yellow-400 tracking-widest">
+												CONFIRM?
+											</span>
+											<button
+												type="button"
+												disabled={rollbackDeployment.isPending}
+												onClick={() => {
+													rollbackDeployment.mutate(
+														{ deploymentId: d.id, appId: app.id },
+														{
+															onSettled: () => setRollbackTarget(null),
+														},
+													);
+												}}
+												className="font-mono text-[10px] tracking-widest text-yellow-400 border border-yellow-900/50 px-2 py-0.5 hover:bg-yellow-950/30 transition-colors disabled:opacity-30"
+											>
+												{rollbackDeployment.isPending ? "..." : "YES"}
+											</button>
+											<button
+												type="button"
+												onClick={() => setRollbackTarget(null)}
+												className="font-mono text-[10px] tracking-widest text-ship-fog/70 px-2 py-0.5 hover:text-ship-fog transition-colors"
+											>
+												NO
+											</button>
+										</div>
+									)}
+									<span className="font-mono text-[11px] text-ship-fog/40 ml-auto">
+										{new Date(d.createdAt).toLocaleString()}
+									</span>
+								</div>
+							);
+						})
 					)}
 				</div>
 			)}

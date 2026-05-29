@@ -15,6 +15,11 @@ import {
 	finalizeBuildJobRow,
 	insertStructuredEvent,
 } from "../events.js";
+import {
+	activateDeployment,
+	getDeploymentDir,
+	pruneDeployments,
+} from "../storage.js";
 
 type DB = PostgresJsDatabase<Record<string, unknown>>;
 
@@ -92,12 +97,14 @@ function runNixpacksBuild(
 
 async function extractStaticOutput(
 	appId: string,
+	deploymentId: string,
 	outputDir: string,
 	workspacePath: string,
 ): Promise<void> {
 	const imageTag = `shipyard-${appId}:${workspacePath.split("/").pop()}`;
 	const containerName = `shipyard-extract-${appId}-${Date.now()}`;
-	const sitesPath = path.join(getEnv().SITES_DIR, appId);
+	const sitesDir = getEnv().SITES_DIR;
+	const sitesPath = getDeploymentDir(sitesDir, appId, deploymentId);
 
 	try {
 		execSync(`docker create --name ${containerName} ${imageTag}`, {
@@ -263,7 +270,12 @@ export async function deployNixpacks(
 			logger.info({ deploymentId, outputDir }, "Extracting static output");
 
 			try {
-				await extractStaticOutput(app.id, outputDir, workspacePath);
+				await extractStaticOutput(
+					app.id,
+					deploymentId,
+					outputDir,
+					workspacePath,
+				);
 				await finalizeBuildJobRow(db, deploymentId, "extract", true, 1);
 			} catch (err) {
 				await finalizeBuildJobRow(db, deploymentId, "extract", false, 0);
@@ -277,7 +289,12 @@ export async function deployNixpacks(
 				'Step "extract" completed',
 			);
 
-			// Activate + Caddy file route
+			// Activate via symlink swap, then prune old deployments
+			const sitesDir = env.SITES_DIR;
+			activateDeployment(sitesDir, app.id, deploymentId);
+			await pruneDeployments(db, app.id, sitesDir, env.DEPLOYMENT_KEEP_COUNT);
+
+			// Caddy file route (root permanently points to sites/{appId}/current)
 			await db
 				.update(apps)
 				.set({ activeDeploymentId: deploymentId })

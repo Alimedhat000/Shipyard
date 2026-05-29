@@ -74,6 +74,9 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-32_char_encryption_key_here_xxxx}
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3000}
+      SITES_DIR: /var/lib/shipyard/sites
+    volumes:
+      - shipyard_sites:/var/lib/shipyard/sites:ro
     depends_on:
       postgres:
         condition: service_healthy

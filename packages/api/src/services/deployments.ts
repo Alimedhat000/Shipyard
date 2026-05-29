@@ -1,9 +1,13 @@
+import fs from "node:fs";
+import path from "node:path";
 import {
+	apps,
 	buildJobs,
 	deploymentLogs,
 	deployments,
 } from "@shipyard/shared/schema";
 import { asc, desc, eq } from "drizzle-orm";
+import { getEnv } from "../config/env.js";
 import { db } from "../plugins/db.js";
 
 const safeColumns = {
@@ -17,6 +21,7 @@ const safeColumns = {
 	outputDir: deployments.outputDir,
 	startedAt: deployments.startedAt,
 	finishedAt: deployments.finishedAt,
+	prunedAt: deployments.prunedAt,
 	createdAt: deployments.createdAt,
 };
 
@@ -87,4 +92,72 @@ export async function getDeploymentLogs(deploymentId: string) {
 		.from(deploymentLogs)
 		.where(eq(deploymentLogs.deploymentId, deploymentId))
 		.orderBy(asc(deploymentLogs.createdAt));
+}
+
+export async function rollbackDeployment(
+	deploymentId: string,
+	orgId: string,
+): Promise<{
+	deployment: typeof deployments.$inferSelect | null;
+	app: typeof apps.$inferSelect | null;
+}> {
+	const deployment = await getDeployment(deploymentId);
+	if (!deployment) return { deployment: null, app: null };
+	if (deployment.status !== "success") {
+		throw Object.assign(
+			new Error(
+				`Cannot rollback: deployment has status "${deployment.status}"`,
+			),
+			{ statusCode: 422 },
+		);
+	}
+	if (deployment.prunedAt) {
+		throw Object.assign(
+			new Error("Cannot rollback: deployment artifacts have been pruned"),
+			{ statusCode: 410 },
+		);
+	}
+
+	const siteDir = getEnv().SITES_DIR;
+	const depDir = path.join(siteDir, deployment.appId, deployment.id);
+	if (!fs.existsSync(depDir)) {
+		throw Object.assign(
+			new Error("Cannot rollback: deployment directory does not exist on disk"),
+			{ statusCode: 410 },
+		);
+	}
+
+	const [app] = await db
+		.select()
+		.from(apps)
+		.where(eq(apps.id, deployment.appId));
+	if (!app || app.organizationId !== orgId) {
+		return { deployment: null, app: null };
+	}
+
+	if (app.activeDeploymentId === deployment.id) {
+		throw Object.assign(new Error("Deployment is already active"), {
+			statusCode: 409,
+		});
+	}
+
+	// Swap symlink atomically
+	const currentPath = path.join(siteDir, deployment.appId, "current");
+	try {
+		fs.unlinkSync(currentPath);
+	} catch {
+		// Symlink doesn't exist yet (shouldn't happen if there's an active deployment)
+	}
+	fs.symlinkSync(deployment.id, currentPath, "dir");
+
+	// Update DB pointer
+	await db
+		.update(apps)
+		.set({ activeDeploymentId: deployment.id, updatedAt: new Date() })
+		.where(eq(apps.id, app.id));
+
+	return { deployment, app } as {
+		deployment: typeof deployments.$inferSelect | null;
+		app: typeof apps.$inferSelect | null;
+	};
 }

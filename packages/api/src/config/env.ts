@@ -25,6 +25,7 @@ export const envSchema = z.object({
 	SESSION_TTL: z.string().default("604800"),
 	NODE_ENV: z.string().default("development"),
 	PORT: z.string().default("3000"),
+	SITES_DIR: z.string().default("/var/lib/shipyard/sites"),
 });
 
 export type Env = z.infer<typeof envSchema>;

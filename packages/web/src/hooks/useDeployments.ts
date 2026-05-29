@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 export interface Deployment {
 	id: string;
 	status: "pending" | "building" | "success" | "failed";
+	prunedAt: string | null;
 	createdAt: string;
 }
 
@@ -49,6 +50,32 @@ export function useDeployApp() {
 		},
 		onSuccess: (_data, appId) => {
 			qc.invalidateQueries({ queryKey: ["deployments", appId] });
+		},
+	});
+}
+
+export function useRollbackDeployment() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: async ({
+			deploymentId,
+		}: {
+			deploymentId: string;
+			appId: string;
+		}) => {
+			const res = await fetch(`/api/deployments/${deploymentId}/rollback`, {
+				method: "POST",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({}));
+				throw new Error(body.error ?? "Failed to rollback");
+			}
+			return res.json();
+		},
+		onSuccess: (_data, variables) => {
+			qc.invalidateQueries({ queryKey: ["deployments", variables.appId] });
 		},
 	});
 }
