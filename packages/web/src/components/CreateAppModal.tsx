@@ -3,7 +3,65 @@ import { useEffect, useRef, useState } from "react";
 import { useCreateApp } from "../hooks/useApps";
 import { BuildPackSelector, type BuildPackValue } from "./BuildPackSelector";
 
+function parseGithubUrl(
+	val: string,
+): { repo: string; branch?: string; subdirectory?: string } | null {
+	const match = val.match(GITHUB_URL_RE);
+	if (!match) return null;
+
+	const repo = match[1];
+	const rest = match[2];
+
+	if (!rest) return { repo };
+
+	const parts = rest.split("/");
+	const branch = parts[0];
+	const subdirectory = parts.slice(1).join("/") || undefined;
+	return { repo, branch, subdirectory };
+}
+
 const GITHUB_REPO_RE = /^[\w.-]+\/[\w.-]+$/;
+const GITHUB_URL_RE =
+	/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+\/[\w.-]+?)(?:\/tree\/([\w.\-/]+))?$/;
+
+const EXAMPLES = [
+	{ label: "Pure HTML", sub: "static" },
+	{ label: "Vue SPA", sub: "vue/spa" },
+	{ label: "Vue SPA Router", sub: "vue/spa-router" },
+	{ label: "Vue SSR", sub: "vue/ssr" },
+	{ label: "Astro Static", sub: "astro/static" },
+	{ label: "Astro Server", sub: "astro/server" },
+	{ label: "Next.js SPA", sub: "nextjs/spa" },
+	{ label: "Next.js SPA (standalone)", sub: "nextjs/spa-standalone" },
+	{ label: "Next.js SPA + img opt", sub: "nextjs/spa-with-image-optimization" },
+	{ label: "Next.js SSR", sub: "nextjs/ssr" },
+	{ label: "Next.js Prisma", sub: "nextjs/prisma" },
+	{ label: "Nuxt Static", sub: "nuxt/static" },
+	{ label: "Nuxt Server", sub: "nuxt/server" },
+	{ label: "Nuxt Nitro", sub: "nuxt/nitro" },
+	{ label: "Remix", sub: "remix" },
+	{ label: "Vite Vanilla JS", sub: "vite/vanilla-js" },
+	{ label: "Vite Vanilla TS", sub: "vite/vanilla-ts" },
+	{ label: "Bun", sub: "bun" },
+	{ label: "Laravel", sub: "laravel" },
+	{ label: "Laravel Inertia", sub: "laravel-inertia" },
+	{ label: "Laravel Pure", sub: "laravel-pure" },
+	{ label: "AdonisJS", sub: "adonisjs/simple" },
+	{ label: "NestJS", sub: "nestjs" },
+	{ label: "Node.js", sub: "nodejs" },
+	{ label: "Flask", sub: "flask" },
+	{ label: "Go Gin", sub: "go/gin" },
+	{ label: "Rust", sub: "rust" },
+	{ label: "Elixir Phoenix", sub: "elixir-phoenix" },
+	{ label: "Symfony", sub: "symfony" },
+	{ label: "Strapi", sub: "strapi" },
+	{ label: "Rails", sub: "rails-example" },
+	{ label: "t3 App", sub: "t3-app" },
+	{ label: "t3 App + NextAuth", sub: "t3-nextauth" },
+	{ label: "Turbo Next.js", sub: "turbo-nextjs" },
+	{ label: "Turbo t3 NextAuth", sub: "turbo-t3-nextauth" },
+	{ label: "Shopware 6", sub: "shopware6" },
+] as const;
 
 function validate(input: {
 	name: string;
@@ -118,6 +176,13 @@ export function CreateAppModal({ open, onClose }: Props) {
 			setTimeout(() => nameInputRef.current?.focus(), 100);
 		}
 	}, [open]);
+
+	// Auto-set branch to v4.x when using the coolify-examples repo
+	useEffect(() => {
+		if (githubRepo === "coollabsio/coolify-examples") {
+			setBranch("v4.x");
+		}
+	}, [githubRepo]);
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -251,7 +316,15 @@ export function CreateAppModal({ open, onClose }: Props) {
 										<input
 											value={githubRepo}
 											onChange={(e) => {
-												setGithubRepo(e.target.value);
+												const val = e.target.value;
+												setGithubRepo(val);
+												const parsed = parseGithubUrl(val);
+												if (parsed) {
+													setGithubRepo(parsed.repo);
+													if (parsed.branch) setBranch(parsed.branch);
+													if (parsed.subdirectory)
+														setSubdirectory(parsed.subdirectory);
+												}
 												if (fieldErrors.githubRepo)
 													setFieldErrors((p) => ({ ...p, githubRepo: "" }));
 											}}
@@ -336,17 +409,40 @@ export function CreateAppModal({ open, onClose }: Props) {
 														<FieldError msg={fieldErrors.outputDir} />
 													</div>
 												)}
-												<div className="space-y-1.5">
-													<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
-														Subdirectory
-													</label>
-													<input
-														value={subdirectory}
-														onChange={(e) => setSubdirectory(e.target.value)}
-														placeholder="e.g. frontend, packages/web"
-														className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
-													/>
-												</div>
+												{githubRepo === "coollabsio/coolify-examples" ? (
+													<div className="space-y-1.5">
+														<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+															Example App
+														</label>
+														<select
+															value={subdirectory}
+															onChange={(e) => {
+																setSubdirectory(e.target.value);
+																setName(e.target.value.replace("/", "-"));
+															}}
+															className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white focus:outline-none focus:border-ship-buoy/50 transition-colors"
+														>
+															<option value="">Select an example...</option>
+															{EXAMPLES.map((ex) => (
+																<option key={ex.sub} value={ex.sub}>
+																	{ex.label} ({ex.sub})
+																</option>
+															))}
+														</select>
+													</div>
+												) : (
+													<div className="space-y-1.5">
+														<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
+															Subdirectory
+														</label>
+														<input
+															value={subdirectory}
+															onChange={(e) => setSubdirectory(e.target.value)}
+															placeholder="e.g. frontend, packages/web"
+															className="w-full bg-ship-deep border border-ship-deck/50 px-3 py-2 font-mono text-sm text-white placeholder:text-ship-deck focus:outline-none focus:border-ship-buoy/50 transition-colors"
+														/>
+													</div>
+												)}
 												<div className="space-y-1.5">
 													<label className="font-mono text-[10px] tracking-widest text-ship-fog uppercase">
 														Build Command
