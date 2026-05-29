@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { logger } from "../config/logger.js";
 import { requireAuth } from "../middleware/auth.js";
+import { myQueue } from "../plugins/queue.js";
 import * as appService from "../services/apps.js";
 import * as deploymentService from "../services/deployments.js";
 
@@ -100,6 +101,14 @@ export function createDeploymentsRouter() {
 				res.status(404).json({ error: "not_found" });
 				return;
 			}
+
+			await myQueue.add("rollback", {
+				type: "rollback",
+				deploymentId: req.params.id,
+				applicationId: result.app.id,
+				titleLog: "Rollback",
+				descriptionLog: `Rollback to deployment ${req.params.id}`,
+			});
 
 			res.json({
 				deployment: result.deployment,
