@@ -288,10 +288,8 @@ export async function deployNixpacks(
 				'Step "extract" completed',
 			);
 
-			// Activate via symlink swap, then prune old deployments
-			const sitesDir = env.SITES_DIR;
-			activateDeployment(sitesDir, app.id, deploymentId);
-			await pruneDeployments(db, app.id, sitesDir, env.DEPLOYMENT_KEEP_COUNT);
+			// Activate via symlink swap
+			activateDeployment(env.SITES_DIR, app.id, deploymentId);
 
 			// Caddy file route (root permanently points to sites/{appId}/current)
 			await db
@@ -388,6 +386,17 @@ export async function deployNixpacks(
 			.set({ status: "success", finishedAt: new Date() })
 			.where(eq(deployments.id, deploymentId));
 		logger.info({ deploymentId }, "Deployment succeeded");
+
+		// Prune old deployments now that status is "success",
+		// so the retention count includes this deployment.
+		if (isStatic) {
+			await pruneDeployments(
+				db,
+				app.id,
+				env.SITES_DIR,
+				env.DEPLOYMENT_KEEP_COUNT,
+			);
+		}
 	} catch (err) {
 		logger.error({ err, deploymentId }, "Nixpacks deployment failed");
 		await insertStructuredEvent(

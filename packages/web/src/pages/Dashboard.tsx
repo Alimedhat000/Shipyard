@@ -344,7 +344,10 @@ function AppCard({ app, onDelete }: { app: AppData; onDelete: () => void }) {
 						</div>
 					) : (
 						deployments.map((d: Deployment) => {
-							const isRollbackable = d.status === "success" && !d.prunedAt;
+							const isRollbackable =
+								d.status === "success" &&
+								!d.prunedAt &&
+								d.id !== activeDeploymentId;
 							const isTarget = rollbackTarget === d.id;
 
 							return (

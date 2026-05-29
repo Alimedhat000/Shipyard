@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { deployments } from "@shipyard/shared";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 type DB = PostgresJsDatabase<Record<string, unknown>>;
@@ -33,9 +33,10 @@ export function activateDeployment(
 		throw new Error(`Deployment directory ${target} does not exist`);
 	}
 
-	fs.rmSync(symlinkPath, { force: true, recursive: true });
-
-	fs.symlinkSync(deploymentId, symlinkPath, "dir");
+	const tmp = `${symlinkPath}.tmp-${process.pid}-${Date.now()}`;
+	fs.rmSync(tmp, { force: true, recursive: true });
+	fs.symlinkSync(deploymentId, tmp, "dir");
+	fs.renameSync(tmp, symlinkPath);
 }
 
 export async function pruneDeployments(
@@ -51,7 +52,7 @@ export async function pruneDeployments(
 			and(
 				eq(deployments.appId, appId),
 				eq(deployments.status, "success"),
-				inArray(deployments.prunedAt, [null as unknown as Date]),
+				isNull(deployments.prunedAt),
 			),
 		)
 		.orderBy(desc(deployments.createdAt));

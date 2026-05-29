@@ -186,7 +186,7 @@ export function createAppsRouter() {
 	 *
 	 * @auth Requires valid session cookie
 	 * @param {string} req.params.id — app ID
-	 * @returns {Array<Deployment>} 200 — array of deployment objects
+	 * @returns {{ deployments: Deployment[], activeDeploymentId: string | null }} 200 — deployments with active ID
 	 * @throws 404 — not_found if app does not exist
 	 */
 	router.get("/:id/deployments", async (req, res) => {

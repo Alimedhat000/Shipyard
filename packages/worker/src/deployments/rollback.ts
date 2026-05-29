@@ -16,6 +16,7 @@ export async function processRollback(
 			deploymentId: deployments.id,
 			appId: deployments.appId,
 			status: deployments.status,
+			prunedAt: deployments.prunedAt,
 		})
 		.from(deployments)
 		.where(eq(deployments.id, deploymentId));
@@ -23,6 +24,9 @@ export async function processRollback(
 	if (!row) throw new Error(`Deployment ${deploymentId} not found`);
 	if (row.status !== "success") {
 		throw new Error(`Cannot rollback: deployment has status "${row.status}"`);
+	}
+	if (row.prunedAt) {
+		throw new Error("Cannot rollback: deployment artifacts have been pruned");
 	}
 
 	const depDir = getDeploymentDir(sitesDir, row.appId, row.deploymentId);
