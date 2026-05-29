@@ -1,6 +1,6 @@
 # ADR-0013: Volume-Based Storage for Static File Serving
 ## Status
-Accepted
+Accepted (updated by ADR-0014)
 ## Context
 The original design (ADR-0003) used Garage (S3-compatible storage) as the primary storage layer, with Caddy reverse-proxying to Garage's S3 API. This introduced complexity:
 
@@ -14,13 +14,15 @@ For a self-hosted deployment platform serving static sites, this adds unnecessar
 
 ## Decision
 - **Storage**: Use a shared Docker named volume (`shipyard_sites`) mounted in both the worker and Caddy containers.
-- **Upload**: After build, worker copies output to `/var/lib/shipyard/sites/{appId}/`.
-- **Serving**: Caddy uses `file_server` handler pointing to the app's directory - no proxy, no auth.
-- **Retention**: Not implemented for volume storage. Each deploy overwrites the previous (latest deployment always live).
+- **Upload**: After build, worker copies output to `/var/lib/shipyard/sites/{appId}/{deploymentId}/`.
+- **Activation**: A symlink at `sites/{appId}/current` points to the active deployment's directory. Swap the symlink on rollback or re-deploy.
+- **Serving**: Caddy's `file_server` root points to `sites/{appId}/current` — set once at first deploy, unchanged on rollback.
+- **Retention**: Per-deployment subdirectories are pruned after each successful deploy (keep newest `KEEP_COUNT`, default 5). Building deployments excluded.
 
 ## Architecture
 ```
-Worker builds → copies to shared volume → Caddy serves via file_server
+Worker builds → extracts to sites/{appId}/{deploymentId}/
+  → ln -sfn {deploymentId} current → Caddy serves via sites/{appId}/current
 ```
 
 ### Docker Compose
@@ -38,6 +40,15 @@ services:
       - shipyard_sites:/var/lib/shipyard/sites:ro
 ```
 
+### Symlink layout
+```
+sites/{appId}/
+├── current/                  → symlink to active deployment
+├── {deploymentIdX}/          → files from deployment X
+├── {deploymentIdY}/          → files from deployment Y (pruned after KEEP_COUNT)
+└── ...
+```
+
 ### Caddy Route (per-app)
 ```json
 {
@@ -45,7 +56,7 @@ services:
   "match": [{ "host": ["{domain}"] }],
   "handle": [{
     "handler": "file_server",
-    "root": "/var/lib/shipyard/sites/{appId}"
+    "root": "/var/lib/shipyard/sites/{appId}/current"
   }],
   "terminal": true
 }
@@ -58,12 +69,13 @@ For SPAs: use subroute with error fallback to rewrite to `/index.html`.
   - Zero auth complexity - Caddy reads directly from filesystem
   - Simple deployment - no Garage cluster to manage
   - Fast serving - filesystem I/O vs network round-trip to S3
-  - No retention needed - latest deployment always serves
+  - Symlink activation — atomic, no Caddy API call on rollback per ADR-0014
+  - Per-deployment artifact isolation — immutable historical builds
 
 - **Cons:**
   - No built-in redundancy - volume is server-local
   - No content hashing/deduplication (schema exists but unused)
-  - Rollback loses previous deployment's files (only DB pointer changes)
+  - Per-deployment retention requires pruning (background job per deploy)
 
 ## Alternatives Considered
 - **Garage with Web API (port 3902)**: Requires `root_domain` config, bucket website flag, host header manipulation in Caddy - fragile.
