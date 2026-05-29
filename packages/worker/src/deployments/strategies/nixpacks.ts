@@ -60,13 +60,11 @@ function runNixpacksBuild(
 			args.push("--start-cmd", app.runCommand);
 		}
 
-		// Write env vars to a temporary file so secrets never appear on the command line.
-		const envFilePath = path.join(workspacePath, ".env");
-		const envFileContent = Object.entries(envMap)
-			.map(([k, v]) => `${k}="${v.replace(/"/g, '\\"')}"`)
-			.join("\n");
-		fs.writeFileSync(envFilePath, envFileContent, { mode: 0o600 });
-		args.push("--env-file", envFilePath);
+		// Pass env vars individually. In a container env, command-line
+		// args are not visible to other processes.
+		for (const [k, v] of Object.entries(envMap)) {
+			args.push("--env", `${k}=${v}`);
+		}
 
 		const proc = spawn("nixpacks", args, {
 			cwd: repoDir,
