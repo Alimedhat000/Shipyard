@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import {
 	apps,
 	buildJobs,
@@ -5,6 +7,7 @@ import {
 	deployments,
 } from "@shipyard/shared/schema";
 import { asc, desc, eq } from "drizzle-orm";
+import { getEnv } from "../config/env.js";
 import { db } from "../plugins/db.js";
 
 const safeColumns = {
@@ -122,6 +125,14 @@ export async function rollbackDeployment(
 	if (deployment.prunedAt) {
 		throw Object.assign(
 			new Error("Cannot rollback: deployment artifacts have been pruned"),
+			{ statusCode: 410 },
+		);
+	}
+
+	const depDir = path.join(getEnv().SITES_DIR, deployment.appId, deployment.id);
+	if (!fs.existsSync(depDir)) {
+		throw Object.assign(
+			new Error("Cannot rollback: deployment directory does not exist on disk"),
 			{ statusCode: 410 },
 		);
 	}
